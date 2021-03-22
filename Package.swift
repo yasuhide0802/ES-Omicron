@@ -71,7 +71,7 @@ let package = Package(
                  .define("HAVE_USLEEP", to: "1"),
                  .define("SQLITE_MAX_VARIABLE_NUMBER", to: "99999"),
                  .define("HAVE_GETHOSTUUID", to: "0"),
-                 .unsafeFlags(["-w"])
+                 // .unsafeFlags(["-w"])
              ]),
         .testTarget(
             name: "GRDBTests",
