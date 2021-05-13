@@ -1,15 +1,15 @@
 # GRBD + SQLCipher 
 
 ## What is this?
-This is an amalgomation of GRBD and SQLCipher Community Edition so that it can be consumed as a Swift Package.
+This is an amalgomation of [GRBD](https://github.com/groue/GRDB.swift) and [SQLCipher Community Edition](https://www.zetetic.net/sqlcipher/open-source/) so that it can be consumed as a Swift Package.
 
 The default branch for this repository is `SQLCipher` so that we can more easily pull upstream changes if we need to.
 
 ## Versioning
 
-This Package: *1.0.0*
-GRDB: *5.6.0*
-SQLCipher: *4.4.3*
+* This Package: *1.0.0*
+* GRDB: *5.6.0*
+* SQLCipher: *4.4.3*
 
 ## Contributions
 We do not accept contributions to this repository at this time.  However, feel free to open an issue in order to start a discussion.
