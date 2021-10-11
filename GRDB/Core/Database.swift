@@ -32,7 +32,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     
     /// The error logging function.
     ///
-    /// Quoting https://www.sqlite.org/errlog.html:
+    /// Quoting <https://www.sqlite.org/errlog.html>:
     ///
     /// > SQLite can be configured to invoke a callback function containing an
     /// > error code and a terse error message whenever anomalies occur. This
@@ -71,7 +71,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     /// If no row has ever been inserted using this database connection,
     /// returns zero.
     ///
-    /// For more detailed information, see https://www.sqlite.org/c3ref/last_insert_rowid.html
+    /// For more detailed information, see <https://www.sqlite.org/c3ref/last_insert_rowid.html>
     public var lastInsertedRowID: Int64 {
         SchedulingWatchdog.preconditionValidQueue(self)
         return sqlite3_last_insert_rowid(sqliteConnection)
@@ -80,7 +80,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     /// The number of rows modified, inserted or deleted by the most recent
     /// successful INSERT, UPDATE or DELETE statement.
     ///
-    /// For more detailed information, see https://www.sqlite.org/c3ref/changes.html
+    /// For more detailed information, see <https://www.sqlite.org/c3ref/changes.html>
     public var changesCount: Int {
         SchedulingWatchdog.preconditionValidQueue(self)
         return Int(sqlite3_changes(sqliteConnection))
@@ -90,7 +90,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     /// INSERT, UPDATE or DELETE statements since the database connection was
     /// opened.
     ///
-    /// For more detailed information, see https://www.sqlite.org/c3ref/total_changes.html
+    /// For more detailed information, see <https://www.sqlite.org/c3ref/total_changes.html>
     public var totalChangesCount: Int {
         SchedulingWatchdog.preconditionValidQueue(self)
         return Int(sqlite3_total_changes(sqliteConnection))
@@ -125,8 +125,27 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     // MARK: - Internal properties
     
     // Caches
+    struct SchemaCache {
+        var schemaIdentifiers: [SchemaIdentifier]?
+        fileprivate var schemas: [SchemaIdentifier: DatabaseSchemaCache] = [:]
+        
+        subscript(schemaID: SchemaIdentifier) -> DatabaseSchemaCache { // internal so that it can be tested
+            get {
+                schemas[schemaID] ?? DatabaseSchemaCache()
+            }
+            set {
+                schemas[schemaID] = newValue
+            }
+        }
+        
+        mutating func clear() {
+            schemaIdentifiers = nil
+            schemas.removeAll()
+        }
+    }
+    
     var _lastSchemaVersion: Int32? // Support for clearSchemaCacheIfNeeded()
-    var schemaCache: DatabaseSchemaCache    // internal so that it can be tested
+    var schemaCache = SchemaCache()
     lazy var internalStatementCache = StatementCache(database: self)
     lazy var publicStatementCache = StatementCache(database: self)
     
@@ -142,8 +161,8 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     }
     
     /// If true, select statement execution is recorded.
-    /// Use recordingSelectedRegion(_:), see `selectStatementWillExecute(_:)`
-    var _isRecordingSelectedRegion: Bool = false
+    /// Use recordingSelectedRegion(_:), see `statementWillExecute(_:)`
+    var _isRecordingSelectedRegion = false
     var _selectedRegion = DatabaseRegion()
     
     /// Support for checkForAbortedTransaction()
@@ -163,20 +182,18 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     private var functions = Set<DatabaseFunction>()
     private var collations = Set<DatabaseCollation>()
     private var _readOnlyDepth = 0 // Modify with beginReadOnly/endReadOnly
-    private var isClosed: Bool = false
+    private var isClosed = false
     
     // MARK: - Initializer
     
     init(
         path: String,
         description: String,
-        configuration: Configuration,
-        schemaCache: DatabaseSchemaCache) throws
+        configuration: Configuration) throws
     {
         self.sqliteConnection = try Database.openConnection(path: path, flags: configuration.SQLiteOpenFlags)
         self.description = description
         self.configuration = configuration
-        self.schemaCache = schemaCache
     }
     
     deinit {
@@ -186,7 +203,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     // MARK: - Database Opening
     
     private static func openConnection(path: String, flags: Int32) throws -> SQLiteConnection {
-        // See https://www.sqlite.org/c3ref/open.html
+        // See <https://www.sqlite.org/c3ref/open.html>
         var sqliteConnection: SQLiteConnection? = nil
         let code = sqlite3_open_v2(path, &sqliteConnection, flags, nil)
         guard code == SQLITE_OK else {
@@ -301,7 +318,6 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
         //
         // - DatabaseCursorTests.testIssue583()
         // - http://sqlite.1065341.n5.nabble.com/Issue-report-sqlite3-set-authorizer-triggers-error-4-516-SQLITE-ABORT-ROLLBACK-during-statement-itern-td107972.html
-        // swiftlint:disable:previous line_length
         let dbPointer = Unmanaged.passUnretained(self).toOpaque()
         sqlite3_set_authorizer(
             sqliteConnection,
@@ -347,7 +363,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
         //
         // So let's fail early if file is not a database, or encrypted with
         // another passphrase.
-        try makeSelectStatement(sql: "SELECT * FROM sqlite_master LIMIT 1").makeCursor().next()
+        try makeStatement(sql: "SELECT * FROM sqlite_master LIMIT 1").makeCursor().next()
     }
     
     // MARK: - Database Closing
@@ -397,7 +413,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     ///         try Player.deleteAll(db, keys: ids)
     ///     }
     ///
-    /// See https://www.sqlite.org/limits.html
+    /// See <https://www.sqlite.org/limits.html>
     /// and `SQLITE_LIMIT_VARIABLE_NUMBER`.
     public var maximumStatementArgumentCount: Int {
         Int(sqlite3_limit(sqliteConnection, SQLITE_LIMIT_VARIABLE_NUMBER, -1))
@@ -468,7 +484,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     func beginReadOnly() throws {
         if configuration.readonly { return }
         if _readOnlyDepth == 0 {
-            try internalCachedUpdateStatement(sql: "PRAGMA query_only = 1").execute()
+            try internalCachedStatement(sql: "PRAGMA query_only = 1").execute()
         }
         _readOnlyDepth += 1
     }
@@ -477,7 +493,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
         if configuration.readonly { return }
         _readOnlyDepth -= 1
         if _readOnlyDepth == 0 {
-            try internalCachedUpdateStatement(sql: "PRAGMA query_only = 0").execute()
+            try internalCachedStatement(sql: "PRAGMA query_only = 0").execute()
         }
     }
     
@@ -494,7 +510,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     #if SQLITE_ENABLE_SNAPSHOT
     /// Returns a snapshot that must be freed with `sqlite3_snapshot_free`.
     ///
-    /// See https://www.sqlite.org/c3ref/snapshot.html
+    /// See <https://www.sqlite.org/c3ref/snapshot.html>
     func takeVersionSnapshot() throws -> UnsafeMutablePointer<sqlite3_snapshot> {
         var snapshot: UnsafeMutablePointer<sqlite3_snapshot>?
         let code = withUnsafeMutablePointer(to: &snapshot) {
@@ -574,7 +590,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     ///     // Stop tracing
     ///     db.trace(options: [])
     ///
-    /// See https://www.sqlite.org/c3ref/trace_v2.html for more information.
+    /// See <https://www.sqlite.org/c3ref/trace_v2.html> for more information.
     ///
     /// - parameter options: The set of desired event kinds. Defaults to
     ///   `.statement`, which notifies all executed database statements.
@@ -682,8 +698,8 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     
     /// Runs a WAL checkpoint.
     ///
-    /// See https://www.sqlite.org/wal.html and
-    /// https://www.sqlite.org/c3ref/wal_checkpoint_v2.html for
+    /// See <https://www.sqlite.org/wal.html> and
+    /// <https://www.sqlite.org/c3ref/wal_checkpoint_v2.html> for
     /// more information.
     ///
     /// - parameter kind: The checkpoint mode (default passive)
@@ -713,7 +729,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     
     // MARK: - Interrupt
     
-    // See https://www.sqlite.org/c3ref/interrupt.html
+    // See <https://www.sqlite.org/c3ref/interrupt.html>
     func interrupt() {
         sqlite3_interrupt(sqliteConnection)
     }
@@ -734,7 +750,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     
     /// Suspends the database. A suspended database prevents database locks in
     /// order to avoid the [`0xdead10cc`
-    /// exception](https://developer.apple.com/library/archive/technotes/tn2151/_index.html).
+    /// exception](https://developer.apple.com/documentation/xcode/understanding-the-exception-types-in-a-crash-report).
     ///
     /// This method can be called from any thread.
     ///
@@ -755,7 +771,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
             
             // Interrupt the database because this may trigger an
             // SQLITE_INTERRUPT error which may itself abort a transaction and
-            // release a lock. See https://www.sqlite.org/c3ref/interrupt.html
+            // release a lock. See <https://www.sqlite.org/c3ref/interrupt.html>
             interrupt()
             
             // Now what about the eventual remaining lock? We'll issue a
@@ -766,7 +782,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     
     /// Resumes the database. A resumed database stops preventing database locks
     /// in order to avoid the [`0xdead10cc`
-    /// exception](https://developer.apple.com/library/archive/technotes/tn2151/_index.html).
+    /// exception](https://developer.apple.com/documentation/xcode/understanding-the-exception-types-in-a-crash-report).
     ///
     /// This method can be called from any thread.
     ///
@@ -798,7 +814,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     
     /// Throws SQLITE_ABORT for suspended databases, if statement would lock
     /// the database, in order to avoid the [`0xdead10cc`
-    /// exception](https://developer.apple.com/library/archive/technotes/tn2151/_index.html).
+    /// exception](https://developer.apple.com/documentation/xcode/understanding-the-exception-types-in-a-crash-report).
     func checkForSuspensionViolation(from statement: Statement) throws {
         try $isSuspended.read { isSuspended in
             guard isSuspended else {
@@ -816,9 +832,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
                 return
             }
             
-            if let updateStatement = statement as? UpdateStatement,
-               updateStatement.releasesDatabaseLock
-            {
+            if statement.releasesDatabaseLock {
                 // Accept statements that release locks:
                 // - COMMIT
                 // - ROLLBACK
@@ -866,7 +880,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
         arguments: @autoclosure () -> StatementArguments? = nil)
     throws
     {
-        if isInsideTransactionBlock && !isInsideTransaction {
+        if isInsideTransactionBlock && sqlite3_get_autocommit(sqliteConnection) != 0 {
             throw DatabaseError(
                 resultCode: .SQLITE_ABORT,
                 message: "Transaction was aborted",
@@ -892,7 +906,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     /// - parameters:
     ///     - kind: The transaction type (default nil). If nil, the transaction
     ///       type is configuration.defaultTransactionKind, which itself
-    ///       defaults to .deferred. See https://www.sqlite.org/lang_transaction.html
+    ///       defaults to .deferred. See <https://www.sqlite.org/lang_transaction.html>
     ///       for more information.
     ///     - block: A block that executes SQL statements and return either
     ///       .commit or .rollback.
@@ -993,11 +1007,6 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
             return
         }
         
-        // If the savepoint is top-level, we'll use ROLLBACK TRANSACTION in
-        // order to perform the special error handling of rollbacks (see
-        // the rollback method).
-        let topLevelSavepoint = !isInsideTransaction
-        
         // Begin savepoint
         //
         // We use a single name for savepoints because there is no need
@@ -1031,7 +1040,7 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
                 isInsideTransactionBlock = wasInsideTransactionBlock
                 
                 try execute(sql: "RELEASE SAVEPOINT grdb")
-                assert(!topLevelSavepoint || !isInsideTransaction)
+                assert(sqlite3_get_autocommit(sqliteConnection) == 0)
                 needsRollback = false
             case .rollback:
                 needsRollback = true
@@ -1043,15 +1052,11 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
         
         if needsRollback {
             do {
-                if topLevelSavepoint {
-                    try rollback()
-                } else {
-                    // Rollback, and release the savepoint.
-                    // Rollback alone is not enough to clear the savepoint from
-                    // the SQLite savepoint stack.
-                    try execute(sql: "ROLLBACK TRANSACTION TO SAVEPOINT grdb")
-                    try execute(sql: "RELEASE SAVEPOINT grdb")
-                }
+                // Rollback, and release the savepoint.
+                // Rollback alone is not enough to clear the savepoint from
+                // the SQLite savepoint stack.
+                try execute(sql: "ROLLBACK TRANSACTION TO SAVEPOINT grdb")
+                try execute(sql: "RELEASE SAVEPOINT grdb")
             } catch {
                 if firstError == nil {
                     firstError = error
@@ -1068,13 +1073,13 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
     ///
     /// - parameter kind: The transaction type (default nil). If nil, the
     ///   transaction type is configuration.defaultTransactionKind, which itself
-    ///   defaults to .deferred. See https://www.sqlite.org/lang_transaction.html
+    ///   defaults to .deferred. See <https://www.sqlite.org/lang_transaction.html>
     ///   for more information.
     /// - throws: The error thrown by the block.
     public func beginTransaction(_ kind: TransactionKind? = nil) throws {
         let kind = kind ?? configuration.defaultTransactionKind
         try execute(sql: "BEGIN \(kind.rawValue) TRANSACTION")
-        assert(isInsideTransaction)
+        assert(sqlite3_get_autocommit(sqliteConnection) == 0)
     }
     
     /// Rollbacks a database transaction.
@@ -1121,13 +1126,13 @@ public final class Database: CustomStringConvertible, CustomDebugStringConvertib
         if isInsideTransaction {
             try execute(sql: "ROLLBACK TRANSACTION")
         }
-        assert(!isInsideTransaction)
+        assert(sqlite3_get_autocommit(sqliteConnection) != 0)
     }
     
     /// Commits a database transaction.
     public func commit() throws {
         try execute(sql: "COMMIT TRANSACTION")
-        assert(!isInsideTransaction)
+        assert(sqlite3_get_autocommit(sqliteConnection) != 0)
     }
     
     // MARK: - Memory Management
@@ -1246,7 +1251,7 @@ extension Database {
         }
         try usePassphrase(data)
     }
-
+    
     /// Sets the passphrase used to crypt and decrypt an SQLCipher database.
     ///
     /// Call this method from `Configuration.prepareDatabase`,
@@ -1275,7 +1280,7 @@ extension Database {
         }
         try changePassphrase(data)
     }
-
+    
     /// Changes the passphrase used by an SQLCipher encrypted database.
     public func changePassphrase(_ passphrase: Data) throws {
         // FIXME: sqlite3_rekey is discouraged.
@@ -1287,7 +1292,6 @@ extension Database {
         // > options and using sqlcipher_export() to migrate the contents and
         // > schema of the original db into the new one:
         // > https://discuss.zetetic.net/t/how-to-encrypt-a-plaintext-sqlite-database-to-use-sqlcipher-and-avoid-file-is-encrypted-or-is-not-a-database-errors/
-        // swiftlint:disable:previous line_length
         let code = passphrase.withUnsafeBytes {
             sqlite3_rekey(sqliteConnection, $0.baseAddress, Int32($0.count))
         }
@@ -1302,7 +1306,7 @@ extension Database {
     
     // MARK: - Database-Related Types
     
-    /// See BusyMode and https://www.sqlite.org/c3ref/busy_handler.html
+    /// See BusyMode and <https://www.sqlite.org/c3ref/busy_handler.html>
     public typealias BusyCallback = (_ numberOfTries: Int) -> Bool
     
     /// When there are several connections to a database, a connection may try
@@ -1327,10 +1331,10 @@ extension Database {
     ///
     /// Relevant SQLite documentation:
     ///
-    /// - https://www.sqlite.org/c3ref/busy_timeout.html
-    /// - https://www.sqlite.org/c3ref/busy_handler.html
-    /// - https://www.sqlite.org/lang_transaction.html
-    /// - https://www.sqlite.org/wal.html
+    /// - <https://www.sqlite.org/c3ref/busy_timeout.html>
+    /// - <https://www.sqlite.org/c3ref/busy_handler.html>
+    /// - <https://www.sqlite.org/lang_transaction.html>
+    /// - <https://www.sqlite.org/wal.html>
     public enum BusyMode {
         /// The SQLITE_BUSY error is immediately returned to the connection that
         /// tries to access the locked database.
@@ -1341,7 +1345,7 @@ extension Database {
         case timeout(TimeInterval)
         
         /// A custom callback that is called when a database is locked.
-        /// See https://www.sqlite.org/c3ref/busy_handler.html
+        /// See <https://www.sqlite.org/c3ref/busy_handler.html>
         case callback(BusyCallback)
     }
     
@@ -1362,7 +1366,7 @@ extension Database {
     
     /// A built-in SQLite collation.
     ///
-    /// See https://www.sqlite.org/datatype3.html#collation
+    /// See <https://www.sqlite.org/datatype3.html#collation>
     public struct CollationName: RawRepresentable, Hashable {
         /// :nodoc:
         public let rawValue: String
@@ -1389,7 +1393,7 @@ extension Database {
     ///         t.column("title", .text)
     ///     }
     ///
-    /// See https://www.sqlite.org/datatype3.html
+    /// See <https://www.sqlite.org/datatype3.html>
     public struct ColumnType: RawRepresentable, Hashable {
         /// :nodoc:
         public let rawValue: String
@@ -1426,7 +1430,7 @@ extension Database {
     
     /// An SQLite conflict resolution.
     ///
-    /// See https://www.sqlite.org/lang_conflict.html.
+    /// See <https://www.sqlite.org/lang_conflict.html>
     public enum ConflictResolution: String {
         /// The `ROLLBACK` conflict resolution
         case rollback = "ROLLBACK"
@@ -1446,7 +1450,7 @@ extension Database {
     
     /// A foreign key action.
     ///
-    /// See https://www.sqlite.org/foreignkeys.html
+    /// See <https://www.sqlite.org/foreignkeys.html>
     public enum ForeignKeyAction: String {
         /// The `CASCADE` foreign key action
         case cascade = "CASCADE"
@@ -1468,13 +1472,13 @@ extension Database {
     public struct TracingOptions: OptionSet {
         /// The raw "Trace Event Code".
         ///
-        /// See https://www.sqlite.org/c3ref/c_trace.html
+        /// See <https://www.sqlite.org/c3ref/c_trace.html>
         public let rawValue: CInt
         
         /// Creates a `TracingOptions` from a raw "Trace Event Code".
         ///
         /// See:
-        /// - https://www.sqlite.org/c3ref/c_trace.html
+        /// - <https://www.sqlite.org/c3ref/c_trace.html>
         /// - `Database.trace(options:_:)`
         public init(rawValue: CInt) {
             self.rawValue = rawValue
@@ -1575,15 +1579,8 @@ extension Database {
         /// An event reported by `TracingOptions.statement`.
         case statement(Statement)
         
-        #if GRDBCUSTOMSQLITE || GRDBCIPHER || os(iOS)
         /// An event reported by `TracingOptions.profile`.
         case profile(statement: Statement, duration: TimeInterval)
-        #elseif os(Linux)
-        #else
-        /// An event reported by `TracingOptions.profile`.
-        @available(OSX 10.12, tvOS 10.0, watchOS 3.0, *)
-        case profile(statement: Statement, duration: TimeInterval)
-        #endif
         
         public var description: String {
             switch self {
@@ -1597,6 +1594,7 @@ extension Database {
     }
     
     /// Confirms or cancels the changes performed by a transaction or savepoint.
+    @frozen
     public enum TransactionCompletion {
         /// Confirms changes
         case commit
@@ -1605,7 +1603,7 @@ extension Database {
         case rollback
     }
     
-    /// An SQLite transaction kind. See https://www.sqlite.org/lang_transaction.html
+    /// An SQLite transaction kind. See <https://www.sqlite.org/lang_transaction.html>
     public enum TransactionKind: String {
         /// The `DEFERRED` transaction kind
         case deferred = "DEFERRED"
@@ -1617,7 +1615,7 @@ extension Database {
         case exclusive = "EXCLUSIVE"
     }
     
-    /// An SQLite threading mode. See https://www.sqlite.org/threadsafe.html.
+    /// An SQLite threading mode. See <https://www.sqlite.org/threadsafe.html>.
     enum ThreadingMode {
         case `default`
         case multiThread

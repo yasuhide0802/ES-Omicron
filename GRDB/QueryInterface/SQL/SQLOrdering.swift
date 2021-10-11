@@ -1,5 +1,5 @@
 /// The type that can be used as an SQL ordering term, as described at
-/// https://www.sqlite.org/syntax/ordering-term.html
+/// <https://www.sqlite.org/syntax/ordering-term.html>
 public struct SQLOrdering {
     private var impl: Impl
     
@@ -26,7 +26,7 @@ public struct SQLOrdering {
         case descNullsFirst(SQLExpression)
         
         /// A literal SQL ordering
-        case literal(SQLLiteral)
+        case literal(SQL)
     }
     
     static func expression(_ expression: SQLExpression) -> SQLOrdering {
@@ -49,7 +49,7 @@ public struct SQLOrdering {
         self.init(impl: .descNullsFirst(expression))
     }
     
-    static func literal(_ sqlLiteral: SQLLiteral) -> SQLOrdering {
+    static func literal(_ sqlLiteral: SQL) -> SQLOrdering {
         self.init(impl: .literal(sqlLiteral))
     }
 }
@@ -117,7 +117,7 @@ extension SQLOrdering {
 // MARK: - SQLOrderingTerm
 
 /// The protocol for all types that can be used as an SQL ordering term, as
-/// described at https://www.sqlite.org/syntax/ordering-term.html
+/// described at <https://www.sqlite.org/syntax/ordering-term.html>
 public protocol SQLOrderingTerm {
     /// Returns an SQL ordering.
     var sqlOrdering: SQLOrdering { get }

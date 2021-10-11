@@ -15,7 +15,7 @@ extension AnyFetchRequest {
     { preconditionFailure() }
     
     @available(*, unavailable, message: "Define your own FetchRequest type instead.")
-    public init(_ prepare: @escaping (Database, _ singleResult: Bool) throws -> (SelectStatement, RowAdapter?))
+    public init(_ prepare: @escaping (Database, _ singleResult: Bool) throws -> (Statement, RowAdapter?))
     { preconditionFailure() }
 }
 
@@ -129,7 +129,7 @@ extension DatabaseReader {
 
 extension FetchRequest {
     @available(*, unavailable, message: "Use makePreparedRequest(_:forSingleResult:) instead.")
-    func prepare(_ db: Database, forSingleResult singleResult: Bool) throws -> (SelectStatement, RowAdapter?)
+    func prepare(_ db: Database, forSingleResult singleResult: Bool) throws -> (Statement, RowAdapter?)
     { preconditionFailure() }
     
     @available(*, unavailable, message: "Use ValueObservation.tracking(request.fetchCount) instead")
@@ -183,8 +183,8 @@ extension QueryInterfaceRequest {
 }
 
 extension SQLExpression {
-    @available(*, unavailable, message: "Use SQLLiteral initializer instead")
-    public var sqlLiteral: SQLLiteral
+    @available(*, unavailable, message: "Use SQL initializer instead")
+    public var sqlLiteral: SQL
     { preconditionFailure() }
 }
 
@@ -194,29 +194,35 @@ extension FilteredRequest {
     { preconditionFailure() }
 }
 
+@available(*, deprecated, renamed: "SQL")
+public typealias SQLLiteral = SQL
+
 /// :nodoc:
-@available(*, unavailable, message: "Build literal expressions with SQLLiteral.sqlExpression instead.")
+@available(*, unavailable, message: "Build literal expressions with SQL.sqlExpression instead.")
 struct SQLExpressionLiteral: SQLSpecificExpressible {
     var sqlExpression: SQLExpression { preconditionFailure() }
     
-    @available(*, unavailable, message: "Build literal expressions with SQLLiteral.sqlExpression instead.")
+    @available(*, unavailable, message: "Build literal expressions with SQL.sqlExpression instead.")
     public var sql: String { preconditionFailure() }
     
-    @available(*, unavailable, message: "Build literal expressions with SQLLiteral.sqlExpression instead.")
+    @available(*, unavailable, message: "Build literal expressions with SQL.sqlExpression instead.")
     public var arguments: StatementArguments { preconditionFailure() }
     
-    @available(*, unavailable, message: "Build literal expressions with SQLLiteral.sqlExpression instead.")
+    @available(*, unavailable, message: "Build literal expressions with SQL.sqlExpression instead.")
     public init(sql: String, arguments: StatementArguments = StatementArguments())
     { preconditionFailure() }
     
-    @available(*, unavailable, message: "Build literal expressions with SQLLiteral.sqlExpression instead.")
-    public init(literal sqlLiteral: SQLLiteral)
+    @available(*, unavailable, message: "Build literal expressions with SQL.sqlExpression instead.")
+    public init(literal sqlLiteral: SQL)
     { preconditionFailure() }
 }
 
-extension SQLLiteral {
+@available(*, deprecated, renamed: "SQL")
+public typealias SQLiteral = SQL
+
+extension SQL {
     @available(*, unavailable, message: "Use SQL interpolation instead.")
-    public func mapSQL(_ transform: @escaping (String) -> String) -> SQLLiteral
+    public func mapSQL(_ transform: @escaping (String) -> String) -> SQL
     { preconditionFailure() }
     
     @available(*, unavailable, message: "Use the build(_:) method instead.")
@@ -228,6 +234,9 @@ extension SQLLiteral {
 
 @available(*, unavailable, renamed: "SQLExpression.AssociativeBinaryOperator")
 typealias SQLLogicalBinaryOperator = SQLExpression.AssociativeBinaryOperator
+
+@available(*, deprecated, renamed: "SQLExpression")
+typealias SQLCollatedExpression = SQLExpression
 
 extension SQLRequest {
     @available(*, unavailable, renamed: "RowDecoder")

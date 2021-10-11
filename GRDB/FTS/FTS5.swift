@@ -8,12 +8,12 @@ import Foundation
 ///         t.column("content")
 ///     }
 ///
-/// See https://www.sqlite.org/fts5.html
+/// See <https://www.sqlite.org/fts5.html>
 public struct FTS5: VirtualTableModule {
     /// Options for Latin script characters. Matches the raw "remove_diacritics"
     /// tokenizer argument.
     ///
-    /// See https://www.sqlite.org/fts5.html
+    /// See <https://www.sqlite.org/fts5.html>
     public enum Diacritics {
         /// Do not remove diacritics from Latin script characters. This
         /// option matches the raw "remove_diacritics=0" tokenizer argument.
@@ -43,8 +43,32 @@ public struct FTS5: VirtualTableModule {
     ///         t.column("content")
     ///     }
     ///
-    /// See https://www.sqlite.org/fts5.html
-    public init() {
+    /// See <https://www.sqlite.org/fts5.html>
+    public init() { }
+    
+    // Support for FTS5Pattern initializers. Don't make public. Users tokenize
+    // with `FTS5Tokenizer.tokenize()` methods, which support custom tokenizers,
+    // token flags, and query/document tokenzation.
+    /// Tokenizes the string argument as an FTS5 query.
+    ///
+    /// For example:
+    ///
+    ///     try FTS5.tokenize(query: "SQLite database")  // ["sqlite", "database"]
+    ///     try FTS5.tokenize(query: "Gustave Doré")     // ["gustave", "doré"])
+    ///
+    /// Synonym (colocated) tokens are not present in the returned array. See
+    /// `FTS5_TOKEN_COLOCATED` at <https://www.sqlite.org/fts5.html#custom_tokenizers>
+    /// for more information.
+    ///
+    /// - parameter string: The tokenized string.
+    /// - returns: An array of tokens.
+    /// - throws: An error if tokenization fails.
+    static func tokenize(query string: String) throws -> [String] {
+        try DatabaseQueue().inDatabase { db in
+            try db.makeTokenizer(.ascii()).tokenize(query: string).compactMap {
+                $0.flags.contains(.colocated) ? nil : $0.token
+            }
+        }
     }
     
     // MARK: - VirtualTableModule Adoption
@@ -52,9 +76,19 @@ public struct FTS5: VirtualTableModule {
     /// The virtual table module name
     public let moduleName = "fts5"
     
-    /// Don't use this method.
+    // TODO: remove when `makeTableDefinition()` is no longer a requirement
+    /// Reserved; part of the VirtualTableModule protocol.
+    ///
+    /// See Database.create(virtualTable:using:)
     public func makeTableDefinition() -> FTS5TableDefinition {
-        FTS5TableDefinition()
+        preconditionFailure()
+    }
+    
+    /// Reserved; part of the VirtualTableModule protocol.
+    ///
+    /// See Database.create(virtualTable:using:)
+    public func makeTableDefinition(configuration: VirtualTableConfiguration) -> FTS5TableDefinition {
+        FTS5TableDefinition(configuration: configuration)
     }
     
     /// Don't use this method.
@@ -150,18 +184,24 @@ public struct FTS5: VirtualTableModule {
                 .map { "old.\($0.quotedDatabaseIdentifier)" }
                 .joined(separator: ", ")
             
+            let ifNotExists = definition.configuration.ifNotExists
+                ? "IF NOT EXISTS "
+                : ""
+            
+            // swiftlint:disable line_length
             try db.execute(sql: """
-                CREATE TRIGGER \("__\(tableName)_ai".quotedDatabaseIdentifier) AFTER INSERT ON \(content) BEGIN
+                CREATE TRIGGER \(ifNotExists)\("__\(tableName)_ai".quotedDatabaseIdentifier) AFTER INSERT ON \(content) BEGIN
                     INSERT INTO \(ftsTable)(\(ftsColumns)) VALUES (\(newContentColumns));
                 END;
-                CREATE TRIGGER \("__\(tableName)_ad".quotedDatabaseIdentifier) AFTER DELETE ON \(content) BEGIN
+                CREATE TRIGGER \(ifNotExists)\("__\(tableName)_ad".quotedDatabaseIdentifier) AFTER DELETE ON \(content) BEGIN
                     INSERT INTO \(ftsTable)(\(ftsTable), \(ftsColumns)) VALUES('delete', \(oldContentColumns));
                 END;
-                CREATE TRIGGER \("__\(tableName)_au".quotedDatabaseIdentifier) AFTER UPDATE ON \(content) BEGIN
+                CREATE TRIGGER \(ifNotExists)\("__\(tableName)_au".quotedDatabaseIdentifier) AFTER UPDATE ON \(content) BEGIN
                     INSERT INTO \(ftsTable)(\(ftsTable), \(ftsColumns)) VALUES('delete', \(oldContentColumns));
                     INSERT INTO \(ftsTable)(\(ftsColumns)) VALUES (\(newContentColumns));
                 END;
                 """)
+            // swiftlint:enable line_length
             
             // https://sqlite.org/fts5.html#the_rebuild_command
             
@@ -243,13 +283,14 @@ public struct FTS5: VirtualTableModule {
 ///         t.column("content")
 ///     }
 ///
-/// See https://www.sqlite.org/fts5.html
+/// See <https://www.sqlite.org/fts5.html>
 public final class FTS5TableDefinition {
     enum ContentMode {
         case raw(content: String?, contentRowID: String?)
         case synchronized(contentTable: String)
     }
     
+    fileprivate let configuration: VirtualTableConfiguration
     fileprivate var columns: [FTS5ColumnDefinition] = []
     fileprivate var contentMode: ContentMode = .raw(content: nil, contentRowID: nil)
     
@@ -259,7 +300,7 @@ public final class FTS5TableDefinition {
     ///         t.tokenizer = .porter()
     ///     }
     ///
-    /// See https://www.sqlite.org/fts5.html#fts5_table_creation_and_initialization
+    /// See <https://www.sqlite.org/fts5.html#fts5_table_creation_and_initialization>
     public var tokenizer: FTS5TokenizerDescriptor?
     
     /// The FTS5 `content` option
@@ -271,7 +312,7 @@ public final class FTS5TableDefinition {
     /// Setting this property invalidates any synchronization previously
     /// established with the `synchronize(withTable:)` method.
     ///
-    /// See https://www.sqlite.org/fts5.html#external_content_and_contentless_tables
+    /// See <https://www.sqlite.org/fts5.html#external_content_and_contentless_tables>
     public var content: String? {
         get {
             switch contentMode {
@@ -300,7 +341,7 @@ public final class FTS5TableDefinition {
     /// Setting this property invalidates any synchronization previously
     /// established with the `synchronize(withTable:)` method.
     ///
-    /// See https://sqlite.org/fts5.html#external_content_tables
+    /// See <https://sqlite.org/fts5.html#external_content_tables>
     public var contentRowID: String? {
         get {
             switch contentMode {
@@ -322,18 +363,22 @@ public final class FTS5TableDefinition {
     
     /// Support for the FTS5 `prefix` option
     ///
-    /// See https://www.sqlite.org/fts5.html#prefix_indexes
+    /// See <https://www.sqlite.org/fts5.html#prefix_indexes>
     public var prefixes: Set<Int>?
     
     /// Support for the FTS5 `columnsize` option
     ///
-    /// https://www.sqlite.org/fts5.html#the_columnsize_option
+    /// <https://www.sqlite.org/fts5.html#the_columnsize_option>
     public var columnSize: Int?
     
     /// Support for the FTS5 `detail` option
     ///
-    /// https://www.sqlite.org/fts5.html#the_detail_option
+    /// <https://www.sqlite.org/fts5.html#the_detail_option>
     public var detail: String?
+    
+    init(configuration: VirtualTableConfiguration) {
+        self.configuration = configuration
+    }
     
     /// Appends a table column.
     ///
@@ -356,7 +401,7 @@ public final class FTS5TableDefinition {
     /// content in the external table. SQL triggers make sure that the
     /// full-text table is kept up to date with the external table.
     ///
-    /// See https://sqlite.org/fts5.html#external_content_tables
+    /// See <https://sqlite.org/fts5.html#external_content_tables>
     public func synchronize(withTable tableName: String) {
         contentMode = .synchronized(contentTable: tableName)
     }
@@ -371,7 +416,7 @@ public final class FTS5TableDefinition {
 ///         t.column("content")      // FTS5ColumnDefinition
 ///     }
 ///
-/// See https://www.sqlite.org/fts5.html
+/// See <https://www.sqlite.org/fts5.html>
 public final class FTS5ColumnDefinition {
     fileprivate let name: String
     fileprivate var isIndexed: Bool
@@ -388,7 +433,7 @@ public final class FTS5ColumnDefinition {
     ///         t.column("b").notIndexed()
     ///     }
     ///
-    /// See https://www.sqlite.org/fts5.html#the_unindexed_column_option
+    /// See <https://www.sqlite.org/fts5.html#the_unindexed_column_option>
     ///
     /// - returns: Self so that you can further refine the column definition.
     @discardableResult

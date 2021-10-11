@@ -2,7 +2,6 @@ import Foundation
 
 /// Data is convertible to and from DatabaseValue.
 extension Data: DatabaseValueConvertible, StatementColumnConvertible {
-    @inlinable
     public init(sqliteStatement: SQLiteStatement, index: Int32) {
         if let bytes = sqlite3_column_blob(sqliteStatement, index) {
             let count = Int(sqlite3_column_bytes(sqliteStatement, index))
@@ -25,10 +24,16 @@ extension Data: DatabaseValueConvertible, StatementColumnConvertible {
             return data
         case .string(let string):
             // Implicit conversion from string to blob, just as SQLite does
-            // See https://www.sqlite.org/c3ref/column_blob.html
+            // See <https://www.sqlite.org/c3ref/column_blob.html>
             return string.data(using: .utf8)
         default:
             return nil
+        }
+    }
+    
+    public func bind(to sqliteStatement: SQLiteStatement, at index: CInt) -> CInt {
+        withUnsafeBytes {
+            sqlite3_bind_blob(sqliteStatement, index, $0.baseAddress, Int32($0.count), SQLITE_TRANSIENT)
         }
     }
 }
@@ -36,7 +41,6 @@ extension Data: DatabaseValueConvertible, StatementColumnConvertible {
 // MARK: - Conversions
 
 extension Data {
-    @inlinable
     static func fastDecodeNoCopy(
         fromStatement sqliteStatement: SQLiteStatement,
         atUncheckedIndex index: Int32,
@@ -57,7 +61,6 @@ extension Data {
         return Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: bytes), count: count, deallocator: .none)
     }
     
-    @inlinable
     static func fastDecodeNoCopy(
         fromRow row: Row,
         atUncheckedIndex index: Int)
@@ -73,7 +76,6 @@ extension Data {
         return try row.fastDecodeDataNoCopy(atUncheckedIndex: index)
     }
 
-    @inlinable
     static func fastDecodeNoCopyIfPresent(
         fromStatement sqliteStatement: SQLiteStatement,
         atUncheckedIndex index: Int32,
@@ -90,7 +92,6 @@ extension Data {
         return Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: bytes), count: count, deallocator: .none)
     }
 
-    @inlinable
     static func fastDecodeNoCopyIfPresent(
         fromRow row: Row,
         atUncheckedIndex index: Int)
