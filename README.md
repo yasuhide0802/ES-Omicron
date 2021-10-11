@@ -35,7 +35,9 @@ This will generate a conflict in this README file, just use this file:
 
 Then update the README to state the version merged.
 
-Next, bump the version number in `package.json` according how the version of GRDB was updated.  Any major or minor version number change, increment the corresponding version in `package.swift`.
+Commit and push your branch, then create a PR against `DuckDuckGo/GRDB.swift/SQLCipher`.
+
+Once merged, tag the branch with a version according to how the version of GRDB was updated, i.e. maintaining [Semantic Versioning Rules](https://semver.org), but note you don't need to follow the version number of GRDB directly.
 
 Examples:
 
@@ -44,5 +46,3 @@ Examples:
 
 * Upstream GRDB 5.12.0 -> 6.0.0
   * This project 7.1.0 -> 8.0.0
-
-Finally, commit and push your branch, then create a PR against `DuckDuckGo/GRDB.swift/SQLCipher`.
