@@ -41,8 +41,8 @@ Once merged, tag the branch with a version according to how the version of GRDB 
 
 Examples:
 
-* Upstream GRDB 5.6.0 -> 5.12.0
+* Upstream GRDB 5.6.0, after merge -> 5.12.0
   * This project 1.0.0 -> 1.1.0
 
-* Upstream GRDB 5.12.0 -> 6.0.0
+* Upstream GRDB 5.12.0, after merge -> 6.0.0
   * This project 1.1.0 -> 2.0.0
