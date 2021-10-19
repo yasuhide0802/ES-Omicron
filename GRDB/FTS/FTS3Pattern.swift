@@ -7,7 +7,7 @@ public struct FTS3Pattern {
     /// Creates a pattern from a raw pattern string; throws DatabaseError on
     /// invalid syntax.
     ///
-    /// The pattern syntax is documented at https://www.sqlite.org/fts3.html#full_text_index_queries
+    /// The pattern syntax is documented at <https://www.sqlite.org/fts3.html#full_text_index_queries>
     ///
     ///     try FTS3Pattern(rawPattern: "and") // OK
     ///     try FTS3Pattern(rawPattern: "AND") // malformed MATCH expression: [AND]
@@ -41,7 +41,7 @@ public struct FTS3Pattern {
     ///
     /// - parameter string: The string to turn into an FTS3 pattern
     public init?(matchingAnyTokenIn string: String) {
-        let tokens = FTS3TokenizerDescriptor.simple.tokenize(string)
+        let tokens = FTS3.tokenize(string, withTokenizer: .simple)
         guard !tokens.isEmpty else { return nil }
         try? self.init(rawPattern: tokens.joined(separator: " OR "))
     }
@@ -54,9 +54,22 @@ public struct FTS3Pattern {
     ///
     /// - parameter string: The string to turn into an FTS3 pattern
     public init?(matchingAllTokensIn string: String) {
-        let tokens = FTS3TokenizerDescriptor.simple.tokenize(string)
+        let tokens = FTS3.tokenize(string, withTokenizer: .simple)
         guard !tokens.isEmpty else { return nil }
         try? self.init(rawPattern: tokens.joined(separator: " "))
+    }
+    
+    /// Creates a pattern that matches all token prefixes found in the input
+    /// string; returns nil if no pattern could be built.
+    ///
+    ///     FTS3Pattern(matchingAllTokensIn: "")        // nil
+    ///     FTS3Pattern(matchingAllTokensIn: "foo bar") // foo* bar*
+    ///
+    /// - parameter string: The string to turn into an FTS3 pattern
+    public init?(matchingAllPrefixesIn string: String) {
+        let tokens = FTS3.tokenize(string, withTokenizer: .simple)
+        guard !tokens.isEmpty else { return nil }
+        try? self.init(rawPattern: tokens.map { "\($0)*" }.joined(separator: " "))
     }
     
     /// Creates a pattern that matches a contiguous string; returns nil if no
@@ -67,7 +80,7 @@ public struct FTS3Pattern {
     ///
     /// - parameter string: The string to turn into an FTS3 pattern
     public init?(matchingPhrase string: String) {
-        let tokens = FTS3TokenizerDescriptor.simple.tokenize(string)
+        let tokens = FTS3.tokenize(string, withTokenizer: .simple)
         guard !tokens.isEmpty else { return nil }
         try? self.init(rawPattern: "\"" + tokens.joined(separator: " ") + "\"")
     }

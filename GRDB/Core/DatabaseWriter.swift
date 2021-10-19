@@ -71,6 +71,16 @@ public protocol DatabaseWriter: DatabaseReader {
     func barrierWriteWithoutTransaction<T>(_ updates: (Database) throws -> T) rethrows -> T
     
     /// Asynchronously executes database updates in a protected dispatch queue,
+    /// outside of any transaction, and returns the result.
+    ///
+    /// Updates are guaranteed an exclusive access to the database. They wait
+    /// until all pending writes and reads are completed. They postpone all
+    /// other writes and reads until they are completed.
+    ///
+    /// - parameter updates: The updates to the database.
+    func asyncBarrierWriteWithoutTransaction(_ updates: @escaping (Database) -> Void)
+    
+    /// Asynchronously executes database updates in a protected dispatch queue,
     /// wrapped inside a transaction.
     ///
     /// If the updates throw an error, the transaction is rollbacked.
@@ -305,10 +315,49 @@ extension DatabaseWriter {
     /// Rebuilds the database file, repacking it into a minimal amount of
     /// disk space.
     ///
-    /// See https://www.sqlite.org/lang_vacuum.html for more information.
+    /// See <https://www.sqlite.org/lang_vacuum.html> for more information.
     public func vacuum() throws {
         try writeWithoutTransaction { try $0.execute(sql: "VACUUM") }
     }
+    
+    // VACUUM INTO was introduced in SQLite 3.27.0:
+    // https://www.sqlite.org/releaselog/3_27_0.html
+    //
+    // Old versions of SQLCipher won't have it, but I don't know how to perform
+    // availability checks that depend on the version of the SQLCipher CocoaPod
+    // chosen by the application. So let's just have the method fail at runtime.
+    //
+    // This method is declared on DatabaseWriter instead of DatabaseReader,
+    // so that it is not available on DatabaseSnaphot. VACUUM INTO is not
+    // available inside the transaction that is kept open by DatabaseSnaphot.
+    #if GRDBCUSTOMSQLITE || GRDBCIPHER
+    /// Creates a new database file at the specified path with a minimum
+    /// amount of disk space.
+    ///
+    /// Databases encrypted with SQLCipher are copied with the same password
+    /// and configuration as the original database.
+    ///
+    /// See <https://www.sqlite.org/lang_vacuum.html#vacuuminto> for more information.
+    ///
+    /// - Parameter filePath: file path for new database
+    public func vacuum(into filePath: String) throws {
+        try writeWithoutTransaction {
+            try $0.execute(sql: "VACUUM INTO ?", arguments: [filePath])
+        }
+    }
+    #else
+    /// Creates a new database file at the specified path with a minimum
+    /// amount of disk space.
+    /// See <https://www.sqlite.org/lang_vacuum.html#vacuuminto> for more information.
+    ///
+    /// - Parameter filePath: file path for new database
+    @available(OSX 10.16, iOS 14, tvOS 14, watchOS 7, *)
+    public func vacuum(into filePath: String) throws {
+        try writeWithoutTransaction {
+            try $0.execute(sql: "VACUUM INTO ?", arguments: [filePath])
+        }
+    }
+    #endif
     
     // MARK: - Database Observation
     
@@ -618,6 +667,10 @@ public final class AnyDatabaseWriter: DatabaseWriter {
     
     public func barrierWriteWithoutTransaction<T>(_ updates: (Database) throws -> T) rethrows -> T {
         try base.barrierWriteWithoutTransaction(updates)
+    }
+    
+    public func asyncBarrierWriteWithoutTransaction(_ updates: @escaping (Database) -> Void) {
+        base.asyncBarrierWriteWithoutTransaction(updates)
     }
     
     public func asyncWrite<T>(

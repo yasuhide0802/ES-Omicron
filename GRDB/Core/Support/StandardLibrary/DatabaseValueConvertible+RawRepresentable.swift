@@ -17,6 +17,12 @@ extension SQLExpressible where Self: RawRepresentable, Self.RawValue: SQLExpress
     }
 }
 
+extension StatementBinding where Self: RawRepresentable, Self.RawValue: StatementBinding {
+    public func bind(to sqliteStatement: SQLiteStatement, at index: CInt) -> CInt {
+        rawValue.bind(to: sqliteStatement, at: index)
+    }
+}
+
 /// `DatabaseValueConvertible` is free for `RawRepresentable` types whose raw
 /// value is itself `DatabaseValueConvertible`.
 ///

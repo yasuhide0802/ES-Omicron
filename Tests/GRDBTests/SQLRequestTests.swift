@@ -6,7 +6,7 @@ class SQLRequestTests: GRDBTestCase {
     func testSQLRequest() throws {
         let dbQueue = try makeDatabaseQueue()
         try dbQueue.inDatabase { db in
-            let request = SQLRequest<Row>(sql: "SELECT 1")
+            let request = SQLRequest(sql: "SELECT 1")
             let preparedRequest = try request.makePreparedRequest(db, forSingleResult: false)
             XCTAssertEqual(preparedRequest.statement.sql, "SELECT 1")
             XCTAssertNil(preparedRequest.adapter)
@@ -30,7 +30,7 @@ class SQLRequestTests: GRDBTestCase {
     func testNotCachedSQLRequest() throws {
         let dbQueue = try makeDatabaseQueue()
         try dbQueue.inDatabase { db in
-            let request = SQLRequest<Row>(sql: "SELECT 1")
+            let request = SQLRequest(sql: "SELECT 1")
             let preparedRequest1 = try request.makePreparedRequest(db, forSingleResult: false)
             let preparedRequest2 = try request.makePreparedRequest(db, forSingleResult: false)
             XCTAssertTrue(preparedRequest1.statement !== preparedRequest2.statement)
@@ -40,7 +40,7 @@ class SQLRequestTests: GRDBTestCase {
     func testCachedSQLRequest() throws {
         let dbQueue = try makeDatabaseQueue()
         try dbQueue.inDatabase { db in
-            let request = SQLRequest<Row>(sql: "SELECT 1", cached: true)
+            let request = SQLRequest(sql: "SELECT 1", cached: true)
             let preparedRequest1 = try request.makePreparedRequest(db, forSingleResult: false)
             let preparedRequest2 = try request.makePreparedRequest(db, forSingleResult: false)
             XCTAssertTrue(preparedRequest1.statement === preparedRequest2.statement)
@@ -50,7 +50,7 @@ class SQLRequestTests: GRDBTestCase {
     func testSQLLiteralInitializer() throws {
         let dbQueue = try makeDatabaseQueue()
         try dbQueue.inDatabase { db in
-            let request = SQLRequest<String>(literal: SQLLiteral(sql: """
+            let request = SQLRequest<String>(literal: SQL(sql: """
                 SELECT ?
                 """, arguments: ["O'Brien"]))
             
@@ -103,7 +103,7 @@ class SQLRequestTests: GRDBTestCase {
     
     func testSQLInterpolation() throws {
         // This test assumes SQLRequest interpolation is based on
-        // SQLInterpolation, just like SQLLiteral. We thus test much less
+        // SQLInterpolation, just like `SQL` literal. We thus test much less
         // cases.
         struct Player: Codable, TableRecord, FetchableRecord, PersistableRecord {
             var id: Int64
@@ -135,7 +135,7 @@ class SQLRequestTests: GRDBTestCase {
             
             // The test pass if this method compiles.
             static func complexRequest() -> SQLRequest<Player> {
-                let query: SQLLiteral = "SELECT * FROM \(self)"
+                let query: SQL = "SELECT * FROM \(self)"
                 return SQLRequest(literal: query)
             }
         }

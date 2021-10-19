@@ -13,12 +13,9 @@ public struct FTS5Pattern {
     ///
     /// - parameter string: The string to turn into an FTS5 pattern
     public init?(matchingAnyTokenIn string: String) {
-        guard let tokens = try? DatabaseQueue()
-                .inDatabase({ try $0.makeTokenizer(.ascii()) .nonSynonymTokens(in: string, for: .query) })
-        else {
+        guard let tokens = try? FTS5.tokenize(query: string), !tokens.isEmpty else {
             return nil
         }
-        guard !tokens.isEmpty else { return nil }
         try? self.init(rawPattern: tokens.joined(separator: " OR "))
     }
     
@@ -30,13 +27,24 @@ public struct FTS5Pattern {
     ///
     /// - parameter string: The string to turn into an FTS5 pattern
     public init?(matchingAllTokensIn string: String) {
-        guard let tokens = try? DatabaseQueue()
-                .inDatabase({ try $0.makeTokenizer(.ascii()).nonSynonymTokens(in: string, for: .query) })
-        else {
+        guard let tokens = try? FTS5.tokenize(query: string), !tokens.isEmpty else {
             return nil
         }
-        guard !tokens.isEmpty else { return nil }
         try? self.init(rawPattern: tokens.joined(separator: " "))
+    }
+    
+    /// Creates a pattern that matches all token prefixes found in the input
+    /// string; returns nil if no pattern could be built.
+    ///
+    ///     FTS3Pattern(matchingAllTokensIn: "")        // nil
+    ///     FTS3Pattern(matchingAllTokensIn: "foo bar") // foo* bar*
+    ///
+    /// - parameter string: The string to turn into an FTS3 pattern
+    public init?(matchingAllPrefixesIn string: String) {
+        guard let tokens = try? FTS5.tokenize(query: string), !tokens.isEmpty else {
+            return nil
+        }
+        try? self.init(rawPattern: tokens.map { "\($0)*" }.joined(separator: " "))
     }
     
     /// Creates a pattern that matches a contiguous string; returns nil if no
@@ -47,12 +55,9 @@ public struct FTS5Pattern {
     ///
     /// - parameter string: The string to turn into an FTS5 pattern
     public init?(matchingPhrase string: String) {
-        guard let tokens = try? DatabaseQueue()
-                .inDatabase({ try $0.makeTokenizer(.ascii()) .nonSynonymTokens(in: string, for: .query) })
-        else {
+        guard let tokens = try? FTS5.tokenize(query: string), !tokens.isEmpty else {
             return nil
         }
-        guard !tokens.isEmpty else { return nil }
         try? self.init(rawPattern: "\"" + tokens.joined(separator: " ") + "\"")
     }
     
@@ -67,12 +72,9 @@ public struct FTS5Pattern {
     ///
     /// - parameter string: The string to turn into an FTS5 pattern
     public init?(matchingPrefixPhrase string: String) {
-        guard let tokens = try? DatabaseQueue()
-                .inDatabase({ try $0.makeTokenizer(.ascii()) .nonSynonymTokens(in: string, for: .query) })
-        else {
+        guard let tokens = try? FTS5.tokenize(query: string), !tokens.isEmpty else {
             return nil
         }
-        guard !tokens.isEmpty else { return nil }
         try? self.init(rawPattern: "^\"" + tokens.joined(separator: " ") + "\"")
     }
     
@@ -93,7 +95,7 @@ public struct FTS5Pattern {
                         }
                     }
                 }
-                try db.makeSelectStatement(sql: "SELECT * FROM document WHERE document MATCH ?")
+                try db.makeStatement(sql: "SELECT * FROM document WHERE document MATCH ?")
                     .makeCursor(arguments: [rawPattern])
                     .next() // error on next() for invalid patterns
             }
@@ -114,7 +116,7 @@ extension Database {
     /// Creates a pattern from a raw pattern string; throws DatabaseError on
     /// invalid syntax.
     ///
-    /// The pattern syntax is documented at https://www.sqlite.org/fts5.html#full_text_query_syntax
+    /// The pattern syntax is documented at <https://www.sqlite.org/fts5.html#full_text_query_syntax>
     ///
     ///     try db.makeFTS5Pattern(rawPattern: "and", forTable: "document") // OK
     ///     try db.makeFTS5Pattern(rawPattern: "AND", forTable: "document") // malformed MATCH expression: [AND]

@@ -35,7 +35,6 @@ enum RowDecodingError: Error {
         /// The SQL query arguments
         let statementArguments: StatementArguments?
         
-        @usableFromInline
         init(decodingContext: RowDecodingContext, debugDescription: String) {
             self.debugDescription = debugDescription
             self.row = decodingContext.row
@@ -89,10 +88,9 @@ enum RowDecodingError: Error {
     
     /// Convenience method that builds the
     /// `could not decode <Type> from database value <value>` error message.
-    @usableFromInline
     static func valueMismatch(
         _ type: Any.Type,
-        statement: SelectStatement,
+        statement: Statement,
         index: Int)
     -> Self
     {
@@ -149,7 +147,7 @@ struct RowDecodingContext {
     
     /// Convenience initializer
     @usableFromInline
-    init(statement: SelectStatement, index: Int) {
+    init(statement: Statement, index: Int) {
         self.key = .columnIndex(index)
         self.row = Row(copiedFromSQLiteStatement: statement.sqliteStatement, statement: statement)
         self.sql = statement.sql
@@ -171,7 +169,7 @@ extension RowDecodingError: CustomStringConvertible {
                 let columnName = row.columnNames[rowIndex]
                 chunks.append("column: \(String(reflecting: columnName))")
                 chunks.append("column index: \(columnIndex)")
-
+                
             case let .columnName(columnName):
                 if let columnIndex = row.index(forColumn: columnName) {
                     chunks.append("column: \(String(reflecting: columnName))")

@@ -4,7 +4,7 @@ import Foundation
 
 /// DatabaseValue is the intermediate type between SQLite and your values.
 ///
-/// See https://www.sqlite.org/datatype3.html
+/// See <https://www.sqlite.org/datatype3.html>
 public struct DatabaseValue: Hashable, CustomStringConvertible, DatabaseValueConvertible, SQLSpecificExpressible {
     /// The SQLite storage
     public let storage: Storage
@@ -13,6 +13,7 @@ public struct DatabaseValue: Hashable, CustomStringConvertible, DatabaseValueCon
     public static let null = DatabaseValue(storage: .null)
     
     /// An SQLite storage (NULL, INTEGER, REAL, TEXT, BLOB).
+    @frozen
     public enum Storage: Equatable {
         /// The NULL storage class.
         case null
@@ -115,7 +116,6 @@ public struct DatabaseValue: Hashable, CustomStringConvertible, DatabaseValueCon
     }
     
     /// Returns a DatabaseValue initialized from a raw SQLite statement pointer.
-    @usableFromInline
     init(sqliteStatement: SQLiteStatement, index: Int32) {
         switch sqlite3_column_type(sqliteStatement, index) {
         case SQLITE_NULL:
@@ -136,6 +136,23 @@ public struct DatabaseValue: Hashable, CustomStringConvertible, DatabaseValueCon
         case let type:
             // Assume a GRDB bug: there is no point throwing any error.
             fatalError("Unexpected SQLite column type: \(type)")
+        }
+    }
+}
+
+extension DatabaseValue: StatementBinding {
+    public func bind(to sqliteStatement: SQLiteStatement, at index: CInt) -> CInt {
+        switch storage {
+        case .null:
+            return sqlite3_bind_null(sqliteStatement, index)
+        case .int64(let int64):
+            return int64.bind(to: sqliteStatement, at: index)
+        case .double(let double):
+            return double.bind(to: sqliteStatement, at: index)
+        case .string(let string):
+            return string.bind(to: sqliteStatement, at: index)
+        case .blob(let data):
+            return data.bind(to: sqliteStatement, at: index)
         }
     }
 }

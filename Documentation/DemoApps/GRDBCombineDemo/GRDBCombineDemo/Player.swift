@@ -2,7 +2,8 @@ import GRDB
 
 /// The Player struct.
 ///
-/// Identifiable conformance supports SwiftUI list animations.
+/// Identifiable conformance supports SwiftUI list animations, and type-safe
+/// GRDB primary key methods.
 /// Equatable conformance supports tests.
 struct Player: Identifiable, Equatable {
     /// The player id.
@@ -50,7 +51,7 @@ extension Player {
 
 /// Make Player a Codable Record.
 ///
-/// See https://github.com/groue/GRDB.swift/blob/master/README.md#records
+/// See <https://github.com/groue/GRDB.swift/blob/master/README.md#records>
 extension Player: Codable, FetchableRecord, MutablePersistableRecord {
     // Define database columns from CodingKeys
     fileprivate enum Columns {
@@ -68,8 +69,8 @@ extension Player: Codable, FetchableRecord, MutablePersistableRecord {
 
 /// Define some player requests used by the application.
 ///
-/// See https://github.com/groue/GRDB.swift/blob/master/README.md#requests
-/// See https://github.com/groue/GRDB.swift/blob/master/Documentation/GoodPracticesForDesigningRecordTypes.md
+/// See <https://github.com/groue/GRDB.swift/blob/master/README.md#requests>
+/// See <https://github.com/groue/GRDB.swift/blob/master/Documentation/GoodPracticesForDesigningRecordTypes.md>
 extension DerivableRequest where RowDecoder == Player {
     /// A request of players ordered by name.
     ///
