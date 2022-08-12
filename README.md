@@ -22,22 +22,33 @@ DuckDuckGo is growing fast and we continue to expand our fully distributed team.
 Add remote upstream:
 
 * `git remote add upstream git@github.com:groue/GRDB.swift.git`
-* `git fetch`
 
-Merge changes:
+Check out upstream's master branch locally:
 
-* Create a new branch, e.g. `git checkout -b your_name/merge_upstream`
-* `git merge upstream/master`
+* `git fetch upstream +master:upstream-master && git checkout upstream-master`
 
-This will generate a conflict in this README file, just use this file:
+Branch off upstream's branch:
 
-* `git checkout README.md`
+* `git checkout -b relase/x.y.z-grdb-a.b.c-sqlcipher-i.j.k`
 
-Then update the README to state the version merged.
+where `x.y.z` is the new version, `a.b.c` is the upstream GRDB version and `i.j.k` is the SQLCipher version.
 
-Commit and push your branch, then create a PR against `DuckDuckGo/GRDB.swift/SQLCipher`.
+Apply the original version of the SQLCipher patch:
 
-Once merged, tag the branch with a version according to how the version of GRDB was updated, i.e. maintaining [Semantic Versioning Rules](https://semver.org), but note you don't need to follow the version number of GRDB directly.
+* `git am -3 0001-SQLCipher-support.patch`
+
+Compile SQLCipher amalgamation package [see general instructions](https://github.com/sqlcipher/sqlcipher#compiling-for-unix-like-systems):
+
+* Use `./configure --with-crypto-lib=none`
+* Remember to use `make sqlite3.c` and not `make`.
+* Copy `sqlite3.c` and `sqlite3.h` to `Sources/SQLCipher/sqlite3.c` and `Sources/SQLCipher/include/sqlite3.h`
+
+Then update the README to state the versions used. Commit and push your branch, create PR for BSK referencing your new branch,
+and then create PRs for iOS and macOS apps referencing your BSK branch.
+
+Once merged, tag the branch with a version according to how the version of GRDB was updated,
+i.e. maintaining [Semantic Versioning Rules](https://semver.org), but note you don't need
+to follow the version number of GRDB directly.
 
 Examples:
 
