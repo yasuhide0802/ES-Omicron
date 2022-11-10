@@ -7,9 +7,9 @@ The default branch for this repository is `SQLCipher` so that we can more easily
 
 ## Versioning
 
-* This Package: *1.0.0*
-* GRDB: *5.6.0*
-* SQLCipher: *4.4.3*
+* This Package: *1.2.1*
+* GRDB: *5.26.0*
+* SQLCipher: *4.5.1*
 
 ## Contributions
 We do not accept contributions to this repository at this time.  However, feel free to open an issue in order to start a discussion.
