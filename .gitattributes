@@ -1,0 +1,3 @@
+GRDB/Export.swift merge=ours
+Sources/CSQLite merge=ours
+Sources/SQLCipher/include/SQLCipher_config.h merge=ours
