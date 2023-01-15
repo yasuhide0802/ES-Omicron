@@ -61,19 +61,26 @@ update_readme() {
 	current_sqlcipher_version="$(grep '\* SQLCipher' .github/README.md | cut -d '*' -f 3)"
 	grdb_tag="$(git describe --tags --abbrev=0 --match=v* upstream-master)"
 
+	export new_version upstream_version="${grdb_tag#v}" sqlcipher_version="${sqlcipher_tag#v}"
+
+	if [[ "${current_upstream_version}" == "${upstream_version}" ]] && \
+		[[ "${current_sqlcipher_version}" == "${sqlcipher_version}" ]]; then
+		echo "GRDB.swift (${upstream_version}) and SQLCipher (${sqlcipher_version}) versions did not change. Skipping release."
+		exit 1
+	fi
+
 	new_version=
 	cat <<- EOF
 
 	DuckDuckGo GRDB.swift current version: ${current_version}
-	Upstream GRDB.swift version: ${current_upstream_version} -> ${grdb_tag#v}
-	SQLCipher version: ${current_sqlcipher_version} -> ${sqlcipher_tag#v}
+	Upstream GRDB.swift version: ${current_upstream_version} -> ${upstream_version}
+	SQLCipher version: ${current_sqlcipher_version} -> ${sqlcipher_version}
 	EOF
 
 	while ! [[ "${new_version}" =~ [0-9]\.[0-9]\.[0-9] ]]; do
 		read -rp "Input DuckDuckGo GRDB.swift desired version number (x.y.z): " new_version < /dev/tty
 	done
 
-	export new_version upstream_version="${grdb_tag#v}" sqlcipher_version="${sqlcipher_tag#v}"
 	envsubst < "${cwd}/.github/README.md.in" > "${cwd}/.github/README.md"
 	git add "${cwd}/.github/README.md"
 
