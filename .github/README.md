@@ -39,6 +39,7 @@ of SQLCipher and embed it in GRDB.swift:
 
 The script will also:
 * present the summary of updated versions and ask you to pick the new version number for DuckDuckGo GRDB fork,
+* test the build,
 * create a new release branch and commit changes.
 
 For versioning, follow [Semantic Versioning Rules](https://semver.org), but note you don't need

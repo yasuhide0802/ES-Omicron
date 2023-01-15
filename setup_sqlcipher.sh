@@ -62,9 +62,13 @@ update_readme() {
 	grdb_tag="$(git describe --tags --abbrev=0 --match=v* upstream-master)"
 
 	new_version=
-	echo "DuckDuckGo GRDB.swift current version: ${current_version}"
-	echo "Upstream GRDB.swift version: ${current_upstream_version} -> ${grdb_tag}"
-	echo "SQLCipher version: ${current_sqlcipher_version} -> ${sqlcipher_tag}"
+	cat <<- EOF
+
+	DuckDuckGo GRDB.swift current version: ${current_version}
+	Upstream GRDB.swift version: ${current_upstream_version} -> ${grdb_tag#v}
+	SQLCipher version: ${current_sqlcipher_version} -> ${sqlcipher_tag#v}
+	EOF
+
 	while ! [[ "${new_version}" =~ [0-9]\.[0-9]\.[0-9] ]]; do
 		read -rp "Input DuckDuckGo GRDB.swift desired version number (x.y.z): " new_version < /dev/tty
 	done
@@ -76,26 +80,32 @@ update_readme() {
 	echo "Updated .github/README.md ✅"
 }
 
+build_release() {
+	echo "Testing the build ..."
+	rm -rf "${cwd}/.build"
+	swift build -c release
+
+	echo "SQLCipher ${sqlcipher_tag} is ready to use with GRDB.swift ${grdb_tag} 🎉"
+}
+
 setup_new_release_branch() {
 	echo "Setting up new release branch ..."
 
-	git checkout -b "release/${new_version}-grdb-${grdb_tag#v}-sqlcipher-${sqlcipher_tag#v}"
-	git add \
-		"${cwd}/.github/README.md" \
-		"${cwd}/GRDB/Export.swift" \
-		"${cwd}/Package.swift" \
-		"${cwd}/Sources/CSQLite" \
-		"$sqlcipher_path"
+	local release_branch="release/${new_version}"
 
+	git checkout -b "$release_branch"
+	git commit -a -m "DuckDuckGo GRDB.swift ${new_version} (GRDB ${upstream-version}, SQLCipher ${sqlcipher_version})"
+
+	echo "Release is prepared on branch ${release_branch}."
+	echo "Push the branch when ready and follow .github/README.md for release instructions."
 }
 
 main() {
 	build_sqlcipher
 	update_sqlcipher_config
 	update_readme
-	#setup_new_release_branch
-
-	echo "SQLCipher ${sqlcipher_tag} is ready to use with GRDB.swift ${grdb_tag} 🎉"
+	build_release
+	setup_new_release_branch
 }
 
 main
