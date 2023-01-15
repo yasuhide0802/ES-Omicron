@@ -92,7 +92,11 @@ build_release() {
 	rm -rf "${cwd}/.build"
 	swift build -c release
 
-	echo "SQLCipher ${sqlcipher_tag} is ready to use with GRDB.swift ${grdb_tag} 🎉"
+	cat <<- EOF
+
+	SQLCipher ${sqlcipher_tag} is ready to use with GRDB.swift ${grdb_tag} 🎉
+
+	EOF
 }
 
 setup_new_release_branch() {
@@ -103,8 +107,11 @@ setup_new_release_branch() {
 	git checkout -b "$release_branch"
 	git commit -a -m "DuckDuckGo GRDB.swift ${new_version} (GRDB ${upstream-version}, SQLCipher ${sqlcipher_version})"
 
-	echo "Release is prepared on branch ${release_branch}."
-	echo "Push the branch when ready and follow .github/README.md for release instructions."
+	cat <<- EOF
+
+	Release is prepared on branch ${release_branch}.
+	Push the branch when ready and follow .github/README.md for release instructions.
+	EOF
 }
 
 main() {

@@ -31,11 +31,15 @@ Update upstream's master branch if needed:
 
 * `git pull upstream master`
 
+Switch back to the `SQLCipher` branch and merge with upstream-master:
+
+* `git merge upstream-master`
+
 Resolve any conflicts that may occur (normally there should be none or only in Package.swift)
-and commit the merge. Once done, run `setup_sqlcipher.sh` script to fetch and compile the latest tag
+and commit the merge. Once done, run `prepare_release.sh` script to fetch and compile the latest tag
 of SQLCipher and embed it in GRDB.swift:
 
-* `./setup_sqlcipher.sh`
+* `./prepare_release.sh`
 
 The script will also:
 * present the summary of updated versions and ask you to pick the new version number for DuckDuckGo GRDB fork,
@@ -58,7 +62,7 @@ Once merged, tag the branch with a version picked earlier and push the tag.
 
 ### Compiling SQLCipher manually
 
-In case `setup_sqlcipher.sh` script fails, you need to compile SQLCipher amalgamation package
+In case `prepare_release.sh` script fails, you need to compile SQLCipher amalgamation package
 manually. See [general instructions](https://github.com/sqlcipher/sqlcipher#compiling-for-unix-like-systems):
 
 * Use `./configure --with-crypto-lib=none`.
