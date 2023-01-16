@@ -55,10 +55,16 @@ to use the same version as GRDB. Examples:
 * Upstream GRDB 5.12.0, after merge -> 6.0.0
   * This project 1.1.0 -> 2.0.0
 
-If everything looks fine, push your branch, create PR for BSK referencing your new branch,
-and then create PRs for iOS and macOS apps referencing your BSK branch.
+If everything looks fine:
+* push your branch,
+* create PR for BSK referencing the new branch,
+* create PRs for iOS and macOS apps referencing your BSK branch.
 
-Once merged, tag the branch with a version picked earlier and push the tag.
+Once approved:
+* merge your branch back to `SQLCipher`,
+* create a tag matching the release number **without the 'v' prefix** (those are reserved for upstream),
+* push the tag,
+* update the reference to GRDB in BSK to point to a tag.
 
 ### Compiling SQLCipher manually
 

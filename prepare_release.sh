@@ -35,7 +35,8 @@ build_sqlcipher() {
 	echo "✅"
 
 	printf '%s' "Building SQLCipher ... "
-	eval make sqlite3.c "$mute"
+	ncpu=$(sysctl -n hw.ncpu 2>/dev/null || echo "1")
+	eval make -j"${ncpu}" sqlite3.c "$mute"
 	echo "✅"
 
 	eval popd "$mute" || { echo "popd failed"; exit 1; }
@@ -69,7 +70,6 @@ update_readme() {
 		exit 1
 	fi
 
-	new_version=
 	cat <<- EOF
 
 	DuckDuckGo GRDB.swift current version: ${current_version}
@@ -87,9 +87,15 @@ update_readme() {
 	echo "Updated .github/README.md ✅"
 }
 
-build_release() {
+build_and_test_release() {
 	echo "Testing the build ..."
 	rm -rf "${cwd}/.build"
+	# The skipped test references a test database added with a podfile.
+	# We're safe to disable it since we don't care about SQLCipher 3 compatibility anyway.
+	swift test --skip "EncryptionTests.testSQLCipher3Compatibility"
+
+	echo ""
+	echo "Building using release configuration ..."
 	swift build -c release
 
 	cat <<- EOF
@@ -105,7 +111,7 @@ setup_new_release_branch() {
 	local release_branch="release/${new_version}"
 
 	git checkout -b "$release_branch"
-	git commit -a -m "DuckDuckGo GRDB.swift ${new_version} (GRDB ${upstream-version}, SQLCipher ${sqlcipher_version})"
+	git commit "$sqlcipher_path" -m "DuckDuckGo GRDB.swift ${new_version} (GRDB ${upstream-version}, SQLCipher ${sqlcipher_version})"
 
 	cat <<- EOF
 
@@ -118,7 +124,7 @@ main() {
 	build_sqlcipher
 	update_sqlcipher_config
 	update_readme
-	build_release
+	build_and_test_release
 	setup_new_release_branch
 }
 
