@@ -45,7 +45,15 @@ build_sqlcipher() {
 	rm -f "$header_path" "$impl_path"
 	mkdir -p "${sqlcipher_path}/include"
 	cp -f "${tempdir}/sqlite3.h" "$header_path"
-	cp -f "${tempdir}/sqlite3.c" "$impl_path"
+	cp -f "${tempdir}/sqlite3.c" "${impl_path}.tmp"
+	echo "✅"
+
+	# Including param.h unconditionally removes compile time
+	# warnings about ambiguous MIN and MAX macros.
+	printf '%s' "Patching sqlite.c ... "
+	echo "#include <sys/param.h>" > "$impl_path"
+	cat "${impl_path}.tmp" >> "$impl_path"
+	rm -f "${impl_path}.tmp"
 	echo "✅"
 }
 
@@ -95,7 +103,6 @@ build_and_test_release() {
 	swift test --skip "EncryptionTests.testSQLCipher3Compatibility"
 
 	echo ""
-	echo "Building using release configuration ..."
 	swift build -c release
 
 	cat <<- EOF
@@ -111,7 +118,8 @@ setup_new_release_branch() {
 	local release_branch="release/${new_version}"
 
 	git checkout -b "$release_branch"
-	git commit "$sqlcipher_path" -m "DuckDuckGo GRDB.swift ${new_version} (GRDB ${upstream-version}, SQLCipher ${sqlcipher_version})"
+	git add "${cwd}/.github/README.md" "$sqlcipher_path"
+	git commit -m "DuckDuckGo GRDB.swift ${new_version} (GRDB ${upstream-version}, SQLCipher ${sqlcipher_version})"
 
 	cat <<- EOF
 
