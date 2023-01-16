@@ -119,7 +119,7 @@ setup_new_release_branch() {
 
 	git checkout -b "$release_branch"
 	git add "${cwd}/.github/README.md" "$sqlcipher_path"
-	git commit -m "DuckDuckGo GRDB.swift ${new_version} (GRDB ${upstream-version}, SQLCipher ${sqlcipher_version})"
+	git commit -m "DuckDuckGo GRDB.swift ${new_version} (GRDB ${upstream_version}, SQLCipher ${sqlcipher_version})"
 
 	cat <<- EOF
 
