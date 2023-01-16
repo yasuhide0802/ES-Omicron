@@ -1,174 +1,232 @@
 import Foundation // For JSONEncoder
 
-/// Types that adopt `EncodableRecord` can be encoded into the database.
+/// A type that can encode itself in a database row.
+///
+/// To conform to `EncodableRecord`, provide an implementation for the
+/// ``encode(to:)-k9pf`` method. This implementation is ready-made for
+/// `Encodable` types.
+///
+/// Most of the time, your record types will get `EncodableRecord` conformance
+/// through the ``MutablePersistableRecord`` or ``PersistableRecord`` protocols,
+/// which provide persistence methods.
+///
+/// ## Topics
+///
+/// ### Encoding a Database Row
+///
+/// - ``encode(to:)-k9pf``
+/// - ``PersistenceContainer``
+///
+/// ### Configuring Persistence for the Standard Encodable Protocol
+///
+/// - ``databaseColumnEncodingStrategy-5sx4v``
+/// - ``databaseDateEncodingStrategy-2gtc1``
+/// - ``databaseEncodingUserInfo-8upii``
+/// - ``databaseJSONEncoder(for:)-6x62c``
+/// - ``databaseUUIDEncodingStrategy-2t96q``
+/// - ``DatabaseColumnEncodingStrategy``
+/// - ``DatabaseDateEncodingStrategy``
+/// - ``DatabaseUUIDEncodingStrategy``
+///
+/// ### Converting a Record to a Dictionary
+///
+/// - ``databaseDictionary``
+///
+/// ### Comparing Records
+///
+/// - ``databaseChanges(from:)``
+/// - ``databaseEquals(_:)``
 public protocol EncodableRecord {
-    /// Encodes the record into database values.
+    /// Encodes the record into the provided persistence container.
     ///
-    /// Store in the *container* argument all values that should be stored in
-    /// the columns of the database table (see databaseTableName()).
+    /// In your implementation of this method, store in the `container` argument
+    /// all values that should be stored in database columns.
     ///
     /// Primary key columns, if any, must be included.
     ///
-    ///     struct Player: EncodableRecord {
-    ///         var id: Int64?
-    ///         var name: String?
+    /// For example:
     ///
-    ///         func encode(to container: inout PersistenceContainer) {
-    ///             container["id"] = id
-    ///             container["name"] = name
-    ///         }
+    /// ```swift
+    /// struct Player: EncodableRecord {
+    ///     var id: Int64?
+    ///     var name: String?
+    ///
+    ///     func encode(to container: inout PersistenceContainer) {
+    ///         container["id"] = id
+    ///         container["name"] = name
     ///     }
+    /// }
+    /// ```
     ///
     /// It is undefined behavior to set different values for the same column.
     /// Column names are case insensitive, so defining both "name" and "NAME"
     /// is considered undefined behavior.
-    func encode(to container: inout PersistenceContainer)
+    ///
+    /// - throws: An error is thrown if the record can't be encoded to its
+    ///   database representation.
+    func encode(to container: inout PersistenceContainer) throws
     
     // MARK: - Customizing the Format of Database Columns
     
-    /// When the EncodableRecord type also adopts the standard Encodable
-    /// protocol, you can use this dictionary to customize the encoding process
-    /// into database rows.
+    /// Contextual information made available to the
+    /// `Encodable.encode(to:)` method.
+    ///
+    /// This property is dedicated to ``EncodableRecord`` types that also
+    /// conform to the standard `Encodable` protocol and use the default
+    /// ``encode(to:)-1mrt`` implementation.
+    ///
+    /// The returned dictionary is returned by `Encoder.userInfo` when the
+    /// record is encoded.
     ///
     /// For example:
     ///
-    ///     // A key that holds a encoder's name
-    ///     let encoderName = CodingUserInfoKey(rawValue: "encoderName")!
+    /// ```swift
+    /// // A key that holds a encoder's name
+    /// let encoderName = CodingUserInfoKey(rawValue: "encoderName")!
     ///
-    ///     struct Player: PersistableRecord, Encodable {
-    ///         // Customize the encoder name when encoding a database row
-    ///         static let databaseEncodingUserInfo: [CodingUserInfoKey: Any] = [encoderName: "Database"]
+    /// struct Player: PersistableRecord, Encodable {
+    ///     // Customize the encoder name when encoding a database row
+    ///     static let databaseEncodingUserInfo: [CodingUserInfoKey: Any] = [encoderName: "Database"]
     ///
-    ///         func encode(to encoder: Encoder) throws {
-    ///             // Print the encoder name
-    ///             print(encoder.userInfo[encoderName])
-    ///             ...
-    ///         }
+    ///     func encode(to encoder: Encoder) throws {
+    ///         // Print the encoder name
+    ///         print(encoder.userInfo[encoderName])
+    ///         ...
     ///     }
+    /// }
     ///
-    ///     let player = Player(...)
+    /// let player = Player(...)
     ///
-    ///     // prints "Database"
-    ///     try player.insert(db)
+    /// // prints "Database"
+    /// try player.insert(db)
     ///
-    ///     // prints "JSON"
-    ///     let encoder = JSONEncoder()
-    ///     encoder.userInfo = [encoderName: "JSON"]
-    ///     let data = try encoder.encode(player)
+    /// // prints "JSON"
+    /// let encoder = JSONEncoder()
+    /// encoder.userInfo = [encoderName: "JSON"]
+    /// let data = try encoder.encode(player)
+    /// ```
     static var databaseEncodingUserInfo: [CodingUserInfoKey: Any] { get }
     
-    /// When the EncodableRecord type also adopts the standard Encodable
-    /// protocol, this method controls the encoding process of nested properties
-    /// into JSON database columns.
+    /// Returns the `JSONEncoder` that encodes the value for a given column.
     ///
-    /// The default implementation returns a JSONEncoder with the
-    /// following properties:
-    ///
-    /// - dataEncodingStrategy: .base64
-    /// - dateEncodingStrategy: .millisecondsSince1970
-    /// - nonConformingFloatEncodingStrategy: .throw
-    /// - outputFormatting: .sortedKeys (iOS 11.0+, macOS 10.13+, tvOS 11.0+, watchOS 4.0+)
-    ///
-    /// You can override those defaults:
-    ///
-    ///     struct Achievement: Encodable {
-    ///         var name: String
-    ///         var date: Date
-    ///     }
-    ///
-    ///     struct Player: Encodable, PersistableRecord {
-    ///         // stored in a JSON column
-    ///         var achievements: [Achievement]
-    ///
-    ///         static func databaseJSONEncoder(for column: String) -> JSONEncoder {
-    ///             let encoder = JSONEncoder()
-    ///             encoder.dateEncodingStrategy = .iso8601
-    ///             return encoder
-    ///         }
-    ///     }
+    /// This method is dedicated to ``EncodableRecord`` types that also conform
+    /// to the standard `Encodable` protocol and use the default
+    /// ``encode(to:)-1mrt`` implementation.
     static func databaseJSONEncoder(for column: String) -> JSONEncoder
     
-    /// When the EncodableRecord type also adopts the standard Encodable
-    /// protocol, this property controls the encoding of date properties.
+    /// The strategy for encoding `Date` columns.
     ///
-    /// Default value is .deferredToDate
+    /// This property is dedicated to ``EncodableRecord`` types that also
+    /// conform to the standard `Encodable` protocol and use the default
+    /// ``encode(to:)-1mrt`` implementation.
     ///
     /// For example:
     ///
-    ///     struct Player: PersistableRecord, Encodable {
-    ///         static let databaseDateEncodingStrategy: DatabaseDateEncodingStrategy = .timeIntervalSince1970
+    /// ```swift
+    /// struct Player: EncodableRecord, Encodable {
+    ///     static let databaseDateEncodingStrategy = DatabaseDateEncodingStrategy.timeIntervalSince1970
     ///
-    ///         var name: String
-    ///         var registrationDate: Date // encoded as an epoch timestamp
-    ///     }
+    ///     // Encoded as an epoch timestamp
+    ///     var creationDate: Date
+    /// }
+    /// ```
     static var databaseDateEncodingStrategy: DatabaseDateEncodingStrategy { get }
     
-    /// When the EncodableRecord type also adopts the standard Encodable
-    /// protocol, this property controls the encoding of UUID properties.
+    /// The strategy for encoding `UUID` columns.
     ///
-    /// Default value is .deferredToUUID
+    /// This property is dedicated to ``EncodableRecord`` types that also
+    /// conform to the standard `Encodable` protocol and use the default
+    /// ``encode(to:)-1mrt`` implementation.
     ///
     /// For example:
     ///
-    ///     struct Player: PersistableProtocol, Encodable {
-    ///         static let databaseUUIDEncodingStrategy: DatabaseUUIDEncodingStrategy = .uppercaseString
+    /// ```swift
+    /// struct Player: EncodableRecord, Encodable {
+    ///     static let databaseUUIDEncodingStrategy = DatabaseUUIDEncodingStrategy.uppercaseString
     ///
-    ///         // encoded in a string like "E621E1F8-C36C-495A-93FC-0C247A3E6E5F"
-    ///         var uuid: UUID
-    ///     }
+    ///     // Encoded in a string like "E621E1F8-C36C-495A-93FC-0C247A3E6E5F"
+    ///     var uuid: UUID
+    /// }
+    /// ```
     static var databaseUUIDEncodingStrategy: DatabaseUUIDEncodingStrategy { get }
     
-    /// When the EncodableRecord type also adopts the standard Encodable
-    /// protocol, this property controls the key encoding strategy.
+    /// The strategy for converting coding keys to column names.
     ///
-    /// Default value is .useDefaultKeys
+    /// This property is dedicated to ``EncodableRecord`` types that also
+    /// conform to the standard `Encodable` protocol and use the default
+    /// ``encode(to:)-1mrt`` implementation.
     ///
     /// For example:
     ///
-    ///     struct Player: PersistableProtocol, Encodable {
-    ///         static let databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy = .convertToSnakeCase
+    /// ```swift
+    /// struct Player: EncodableProtocol, Encodable {
+    ///     static let databaseColumnEncodingStrategy = DatabaseColumnEncodingStrategy.convertToSnakeCase
     ///
-    ///         // encoded as player_id
-    ///         var playerID: String
-    ///     }
+    ///     // Encoded in the 'player_id' column
+    ///     var playerID: String
+    /// }
+    /// ```
     static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { get }
 }
 
 extension EncodableRecord {
+    /// Contextual information made available to the
+    /// `Encodable.encode(to:)` method.
+    ///
+    /// The default implementation returns an empty dictionary.
     public static var databaseEncodingUserInfo: [CodingUserInfoKey: Any] {
         [:]
     }
     
+    /// Returns the `JSONEncoder` that encodes the value for a given column.
+    ///
+    /// The default implementation returns a `JSONEncoder` with the
+    /// following properties:
+    ///
+    /// - `dataEncodingStrategy`: `.base64`
+    /// - `dateEncodingStrategy`: `.millisecondsSince1970`
+    /// - `nonConformingFloatEncodingStrategy`: `.throw`
+    /// - `outputFormatting`: `.sortedKeys`
     public static func databaseJSONEncoder(for column: String) -> JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dataEncodingStrategy = .base64
         encoder.dateEncodingStrategy = .millisecondsSince1970
         encoder.nonConformingFloatEncodingStrategy = .throw
-        if #available(watchOS 4.0, OSX 10.13, iOS 11.0, tvOS 11.0, *) {
-            // guarantee some stability in order to ease record comparison
-            encoder.outputFormatting = .sortedKeys
-        }
+        // guarantee some stability in order to ease record comparison
+        encoder.outputFormatting = .sortedKeys
         encoder.userInfo = databaseEncodingUserInfo
         return encoder
     }
     
+    /// Returns the default strategy for encoding `Date` columns:
+    /// ``DatabaseDateEncodingStrategy/deferredToDate``.
     public static var databaseDateEncodingStrategy: DatabaseDateEncodingStrategy {
         .deferredToDate
     }
     
+    /// Returns the default strategy for encoding `UUID` columns:
+    /// ``DatabaseUUIDEncodingStrategy/deferredToUUID``.
     public static var databaseUUIDEncodingStrategy: DatabaseUUIDEncodingStrategy {
         .deferredToUUID
     }
     
+    /// Returns the default strategy for converting coding keys to column names:
+    /// ``DatabaseColumnEncodingStrategy/useDefaultKeys``.
     public static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy {
         .useDefaultKeys
     }
 }
 
 extension EncodableRecord {
-    /// A dictionary whose keys are the columns encoded in the `encode(to:)` method.
+    /// A dictionary whose keys are the columns encoded in the
+    /// <doc:/documentation/GRDB/EncodableRecord/encode(to:)-k9pf> method.
+    ///
+    /// - throws: An error is thrown if the record can't be encoded to its
+    ///   database representation.
     public var databaseDictionary: [String: DatabaseValue] {
-        Dictionary(PersistenceContainer(self).storage).mapValues { $0?.databaseValue ?? .null }
+        get throws {
+            try Dictionary(PersistenceContainer(self).storage).mapValues { $0?.databaseValue ?? .null }
+        }
     }
 }
 
@@ -179,59 +237,55 @@ extension EncodableRecord {
     /// Returns a boolean indicating whether this record and the other record
     /// have the same database representation.
     public func databaseEquals(_ record: Self) -> Bool {
-        PersistenceContainer(self).changesIterator(from: PersistenceContainer(record)).next() == nil
+        do {
+            return try PersistenceContainer(self).changesIterator(from: PersistenceContainer(record)).next() == nil
+        } catch {
+            // one record can't be encoded: they can't be identical in the database
+            return false
+        }
     }
     
-    /// A dictionary of values changed from the other record.
+    /// Returns a dictionary of values changed from the other record.
     ///
-    /// Its keys are column names. Its values come from the other record.
+    /// The keys of the dictionary are the column names for which record do not
+    /// share the same value. Values are the database values from the
+    /// `other` record.
     ///
-    /// Note that this method is not symmetrical, not only in terms of values,
-    /// but also in terms of columns. When the two records don't define the
-    /// same set of columns in their `encode(to:)` method, only the columns
-    /// defined by the receiver record are considered.
-    public func databaseChanges<Record: EncodableRecord>(from record: Record) -> [String: DatabaseValue] {
-        let changes = PersistenceContainer(self).changesIterator(from: PersistenceContainer(record))
+    /// Note that the `other` record does not have to have the same type of the
+    /// receiver record. When the two records don't define the same set of
+    /// columns in their <doc:/documentation/GRDB/EncodableRecord/encode(to:)-k9pf>
+    /// method, only the columns defined by the receiver are considered.
+    ///
+    /// - throws: An error is thrown if one record can't be encoded to its
+    ///   database representation.
+    public func databaseChanges(from record: some EncodableRecord)
+    throws -> [String: DatabaseValue]
+    {
+        let changes = try PersistenceContainer(self).changesIterator(from: PersistenceContainer(record))
         return Dictionary(uniqueKeysWithValues: changes)
     }
 }
 
 // MARK: - PersistenceContainer
 
-/// Use persistence containers in the `encode(to:)` method of your
-/// encodable records:
+/// A container for database values to store in a database row.
 ///
-///     struct Player: EncodableRecord {
-///         var id: Int64?
-///         var name: String?
-///
-///         func encode(to container: inout PersistenceContainer) {
-///             container["id"] = id
-///             container["name"] = name
-///         }
-///     }
+/// `PersistenceContainer` is the argument of the
+/// ``EncodableRecord/encode(to:)-k9pf`` method.
 public struct PersistenceContainer {
     // fileprivate for Row(_:PersistenceContainer)
     // The ordering of the OrderedDictionary helps generating always the same
     // SQL queries, and hit the statement cache.
-    fileprivate var storage: OrderedDictionary<String, DatabaseValueConvertible?>
+    fileprivate var storage: OrderedDictionary<String, (any DatabaseValueConvertible)?>
     
-    /// Accesses the value associated with the given column.
-    ///
-    /// It is undefined behavior to set different values for the same column.
-    /// Column names are case insensitive, so defining both "name" and "NAME"
-    /// is considered undefined behavior.
-    public subscript(_ column: String) -> DatabaseValueConvertible? {
-        get { storage[column] ?? nil }
+    /// The value associated with the given column.
+    public subscript(_ column: String) -> (any DatabaseValueConvertible)? {
+        get { self[caseInsensitive: column] }
         set { storage.updateValue(newValue, forKey: column) }
     }
     
-    /// Accesses the value associated with the given column.
-    ///
-    /// It is undefined behavior to set different values for the same column.
-    /// Column names are case insensitive, so defining both "name" and "NAME"
-    /// is considered undefined behavior.
-    public subscript<Column: ColumnExpression>(_ column: Column) -> DatabaseValueConvertible? {
+    /// The value associated with the given column.
+    public subscript(_ column: some ColumnExpression) -> (any DatabaseValueConvertible)? {
         get { self[column.name] }
         set { self[column.name] = newValue }
     }
@@ -245,22 +299,29 @@ public struct PersistenceContainer {
     }
     
     /// Convenience initializer from a record
-    init<Record: EncodableRecord>(_ record: Record) {
+    init<Record: EncodableRecord>(_ record: Record) throws {
         self.init()
-        record.encode(to: &self)
+        try record.encode(to: &self)
+    }
+    
+    /// Convenience initializer from a database connection and a record
+    @usableFromInline
+    init(_ db: Database, _ record: some EncodableRecord & TableRecord) throws {
+        let databaseTableName = type(of: record).databaseTableName
+        let columnCount = try db.columns(in: databaseTableName).count
+        self.init(minimumCapacity: columnCount) // Optimization
+        try record.encode(to: &self)
     }
     
     /// Columns stored in the container, ordered like values.
     var columns: [String] { Array(storage.keys) }
     
     /// Values stored in the container, ordered like columns.
-    var values: [DatabaseValueConvertible?] { Array(storage.values) }
+    var values: [(any DatabaseValueConvertible)?] { Array(storage.values) }
     
     /// Accesses the value associated with the given column, in a
     /// case-insensitive fashion.
-    ///
-    /// :nodoc:
-    subscript(caseInsensitive column: String) -> DatabaseValueConvertible? {
+    subscript(caseInsensitive column: String) -> (any DatabaseValueConvertible)? {
         get {
             if let value = storage[column] {
                 return value
@@ -298,10 +359,11 @@ public struct PersistenceContainer {
     var isEmpty: Bool { storage.isEmpty }
     
     /// An iterator over the (column, value) pairs
-    func makeIterator() -> IndexingIterator<OrderedDictionary<String, DatabaseValueConvertible?>> {
+    func makeIterator() -> IndexingIterator<OrderedDictionary<String, (any DatabaseValueConvertible)?>> {
         storage.makeIterator()
     }
     
+    @usableFromInline
     func changesIterator(from container: PersistenceContainer) -> AnyIterator<(String, DatabaseValue)> {
         var newValueIterator = makeIterator()
         return AnyIterator {
@@ -320,8 +382,8 @@ public struct PersistenceContainer {
 }
 
 extension Row {
-    convenience init<Record: EncodableRecord>(_ record: Record) {
-        self.init(PersistenceContainer(record))
+    convenience init<Record: EncodableRecord>(_ record: Record) throws {
+        try self.init(PersistenceContainer(record))
     }
     
     convenience init(_ container: PersistenceContainer) {
@@ -332,16 +394,20 @@ extension Row {
 // MARK: - DatabaseDateEncodingStrategy
 
 /// `DatabaseDateEncodingStrategy` specifies how `EncodableRecord` types that
-/// also adopt the standard `Encodable` protocol encode their `Date` properties.
+/// also adopt the standard `Encodable` protocol encode their `Date` properties
+/// in the default <doc:/documentation/GRDB/EncodableRecord/encode(to:)-1mrt>
+/// implementation.
 ///
 /// For example:
 ///
-///     struct Player: EncodableRecord, Encodable {
-///         static let databaseDateEncodingStrategy = DatabaseDateEncodingStrategy.timeIntervalSince1970
+/// ```swift
+/// struct Player: EncodableRecord, Encodable {
+///     static let databaseDateEncodingStrategy = DatabaseDateEncodingStrategy.timeIntervalSince1970
 ///
-///         var name: String
-///         var registrationDate: Date // encoded as an epoch timestamp
-///     }
+///     // Encoded as an epoch timestamp
+///     var creationDate: Date
+/// }
+/// ```
 public enum DatabaseDateEncodingStrategy {
     /// The strategy that uses formatting from the Date structure.
     ///
@@ -366,44 +432,38 @@ public enum DatabaseDateEncodingStrategy {
     case millisecondsSince1970
     
     /// Encodes dates according to the ISO 8601 and RFC 3339 standards
-    @available(macOS 10.12, watchOS 3.0, tvOS 10.0, *)
     case iso8601
     
     /// Encodes a String, according to the provided formatter
     case formatted(DateFormatter)
     
     /// Encodes the result of the user-provided function
-    case custom((Date) -> DatabaseValueConvertible?)
+    case custom((Date) -> (any DatabaseValueConvertible)?)
     
-    @available(macOS 10.12, watchOS 3.0, tvOS 10.0, *)
     private static let iso8601Formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = .withInternetDateTime
         return formatter
     }()
     
-    func encode(_ date: Date) -> DatabaseValueConvertible? {
+    func encode(_ date: Date) -> DatabaseValue {
         switch self {
         case .deferredToDate:
             return date.databaseValue
         case .timeIntervalSinceReferenceDate:
-            return date.timeIntervalSinceReferenceDate
+            return date.timeIntervalSinceReferenceDate.databaseValue
         case .timeIntervalSince1970:
-            return date.timeIntervalSince1970
+            return date.timeIntervalSince1970.databaseValue
         case .millisecondsSince1970:
-            return Int64(floor(1000.0 * date.timeIntervalSince1970))
+            return Int64(floor(1000.0 * date.timeIntervalSince1970)).databaseValue
         case .secondsSince1970:
-            return Int64(floor(date.timeIntervalSince1970))
+            return Int64(floor(date.timeIntervalSince1970)).databaseValue
         case .iso8601:
-            if #available(macOS 10.12, watchOS 3.0, tvOS 10.0, *) {
-                return Self.iso8601Formatter.string(from: date)
-            } else {
-                fatalError("ISO8601DateFormatter is unavailable on this platform.")
-            }
+            return Self.iso8601Formatter.string(from: date).databaseValue
         case .formatted(let formatter):
-            return formatter.string(from: date)
+            return formatter.string(from: date).databaseValue
         case .custom(let format):
-            return format(date)
+            return format(date)?.databaseValue ?? .null
         }
     }
 }
@@ -411,16 +471,20 @@ public enum DatabaseDateEncodingStrategy {
 // MARK: - DatabaseUUIDEncodingStrategy
 
 /// `DatabaseUUIDEncodingStrategy` specifies how `EncodableRecord` types that
-/// also adopt the standard `Encodable` protocol encode their `UUID` properties.
+/// also adopt the standard `Encodable` protocol encode their `UUID` properties
+/// in the default <doc:/documentation/GRDB/EncodableRecord/encode(to:)-1mrt>
+/// implementation.
 ///
 /// For example:
 ///
-///     struct Player: EncodableProtocol, Encodable {
-///         static let databaseUUIDEncodingStrategy = DatabaseUUIDEncodingStrategy.uppercaseString
+/// ```swift
+/// struct Player: EncodableRecord, Encodable {
+///     static let databaseUUIDEncodingStrategy = DatabaseUUIDEncodingStrategy.uppercaseString
 ///
-///         // encoded in a string like "E621E1F8-C36C-495A-93FC-0C247A3E6E5F"
-///         var uuid: UUID
-///     }
+///     // Encoded in a string like "E621E1F8-C36C-495A-93FC-0C247A3E6E5F"
+///     var uuid: UUID
+/// }
+/// ```
 public enum DatabaseUUIDEncodingStrategy {
     /// The strategy that uses formatting from the UUID type.
     ///
@@ -433,18 +497,14 @@ public enum DatabaseUUIDEncodingStrategy {
     /// Encodes UUIDs as lowercased strings such as "e621e1f8-c36c-495a-93fc-0c247a3e6e5f"
     case lowercaseString
     
-    /// Encodes UUIDs as uppercased strings such as "E621E1F8-C36C-495A-93FC-0C247A3E6E5F"
-    @available(*, deprecated, renamed: "uppercaseString")
-    public static var string: Self { .uppercaseString }
-    
-    func encode(_ uuid: UUID) -> DatabaseValueConvertible {
+    func encode(_ uuid: UUID) -> DatabaseValue {
         switch self {
         case .deferredToUUID:
             return uuid.databaseValue
         case .uppercaseString:
-            return uuid.uuidString
+            return uuid.uuidString.databaseValue
         case .lowercaseString:
-            return uuid.uuidString.lowercased()
+            return uuid.uuidString.lowercased().databaseValue
         }
     }
 }
@@ -453,16 +513,19 @@ public enum DatabaseUUIDEncodingStrategy {
 
 /// `DatabaseColumnEncodingStrategy` specifies how `EncodableRecord` types that
 /// also adopt the standard `Encodable` protocol encode their coding keys into
-/// database columns.
+/// database columns in the default <doc:/documentation/GRDB/EncodableRecord/encode(to:)-1mrt>
+/// implementation.
 ///
 /// For example:
 ///
-///     struct Player: EncodableProtocol, Encodable {
-///         static let databaseColumnEncodingStrategy = DatabaseColumnEncodingStrategy.convertToSnakeCase
+/// ```swift
+/// struct Player: EncodableProtocol, Encodable {
+///     static let databaseColumnEncodingStrategy = DatabaseColumnEncodingStrategy.convertToSnakeCase
 ///
-///         // Encoded in the player_id column
-///         var playerID: String
-///     }
+///     // Encoded in the 'player_id' column
+///     var playerID: String
+/// }
+/// ```
 public enum DatabaseColumnEncodingStrategy {
     /// A key encoding strategy that doesn’t change key names during encoding.
     case useDefaultKeys
@@ -471,9 +534,9 @@ public enum DatabaseColumnEncodingStrategy {
     case convertToSnakeCase
     
     /// A key encoding strategy defined by the closure you supply.
-    case custom((CodingKey) -> String)
+    case custom((any CodingKey) -> String)
     
-    func column(forKey key: CodingKey) -> String {
+    func column(forKey key: some CodingKey) -> String {
         switch self {
         case .useDefaultKeys:
             return key.stringValue

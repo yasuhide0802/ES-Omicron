@@ -21,13 +21,13 @@ private struct B : TableRecord {
 /// user-defined table aliases, and expressions that involve several tables.
 class AssociationTableAliasTestsSQLTests : GRDBTestCase {
     
-    override func setup(_ dbWriter: DatabaseWriter) throws {
+    override func setup(_ dbWriter: some DatabaseWriter) throws {
         try dbWriter.write { db in
             try db.create(table: "b") { t in
-                t.column("id", .integer).primaryKey()
+                t.primaryKey("id", .integer)
             }
             try db.create(table: "a") { t in
-                t.column("id", .integer).primaryKey()
+                t.primaryKey("id", .integer)
                 t.column("bid1", .integer).references("b")
                 t.column("bid2", .integer).references("b")
                 t.column("parentId", .integer).references("a")

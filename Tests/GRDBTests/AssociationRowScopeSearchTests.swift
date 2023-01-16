@@ -30,23 +30,23 @@ private struct D: TableRecord, FetchableRecord, Decodable {
 }
 
 class AssociationRowScopeSearchTests: GRDBTestCase {
-    override func setup(_ dbWriter: DatabaseWriter) throws {
+    override func setup(_ dbWriter: some DatabaseWriter) throws {
         try dbWriter.write { db in
             // 1. Prepare data
             try db.create(table: "a") { t in
-                t.column("id", .integer).primaryKey()
+                t.primaryKey("id", .integer)
             }
             try db.create(table: "b") { t in
-                t.column("id", .integer).primaryKey()
+                t.primaryKey("id", .integer)
                 t.column("aid", .integer).references("a")
             }
             try db.create(table: "c") { t in
-                t.column("id", .integer).primaryKey()
+                t.primaryKey("id", .integer)
                 t.column("aid", .integer).references("a")
                 t.column("bid", .integer).references("b")
             }
             try db.create(table: "d") { t in
-                t.column("id", .integer).primaryKey()
+                t.primaryKey("id", .integer)
                 t.column("bid", .integer).references("b")
             }
             try db.execute(sql: "INSERT INTO a (id) VALUES (1)")
@@ -97,8 +97,8 @@ class AssociationRowScopeSearchTests: GRDBTestCase {
             var b: B
             var c: C
             var d: D
-            init(row: Row) {
-                a = A(row: row)
+            init(row: Row) throws {
+                a = try A(row: row)
                 b = row["b"]
                 c = row["c"]
                 d = row["d"]

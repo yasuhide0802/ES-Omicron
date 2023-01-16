@@ -43,20 +43,20 @@ private struct CustomTeamInfo: Decodable, FetchableRecord {
 
 class AssociationAggregateTests: GRDBTestCase {
     
-    override func setup(_ dbWriter: DatabaseWriter) throws {
+    override func setup(_ dbWriter: some DatabaseWriter) throws {
         try dbWriter.write { db in
             try db.create(table: "team") { t in
-                t.column("id", .integer).primaryKey()
+                t.primaryKey("id", .integer)
                 t.column("name", .text)
             }
             try db.create(table: "player") { t in
-                t.column("id", .integer).primaryKey()
+                t.primaryKey("id", .integer)
                 t.column("teamId", .integer).references("team")
                 t.column("name", .text)
                 t.column("score", .integer)
             }
             try db.create(table: "award") { t in
-                t.column("customPrimaryKey", .integer).primaryKey()
+                t.primaryKey("customPrimaryKey", .integer)
                 t.column("teamId", .integer).references("team")
                 t.column("name", .text)
             }

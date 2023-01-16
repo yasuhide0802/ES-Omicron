@@ -1,6 +1,6 @@
 import Foundation
 
-/// A class that serializes accesses to a database.
+/// A class that serializes accesses to an SQLite connection.
 final class SerializedDatabase {
     /// The database connection
     private let db: Database
@@ -249,9 +249,7 @@ final class SerializedDatabase {
     }
 }
 
-#if swift(>=5.6) && canImport(_Concurrency)
 // @unchecked because the wrapped `Database` itself is not Sendable.
 // It happens the job of SerializedDatabase is precisely to provide thread-safe
 // access to `Database`.
 extension SerializedDatabase: @unchecked Sendable { }
-#endif

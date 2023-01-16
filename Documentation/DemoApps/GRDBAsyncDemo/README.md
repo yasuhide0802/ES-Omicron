@@ -7,13 +7,13 @@ Async/Await + SwiftUI Demo Application
 
 **Requirements**: iOS 15.0+ / Xcode 13.1+
 
-> :point_up: **Note**: This demo app is not a project template. Do not copy it as a starting point for your application. Instead, create a new project, choose a GRDB [installation method](../../../README.md#installation), and use the demo as an inspiration.
+> **Note**: This demo app is not a project template. Do not copy it as a starting point for your application. Instead, create a new project, choose a GRDB [installation method](../../../README.md#installation), and use the demo as an inspiration.
 
 The topics covered in this demo are:
 
 - How to setup a database in an iOS app.
 - How to define a simple [Codable Record](../../../README.md#codable-records).
-- How to track database changes and animate a SwiftUI List with an async sequence built from [ValueObservation](../../../README.md#valueobservation).
+- How to track database changes and animate a SwiftUI List with an async sequence built from [ValueObservation](https://swiftpackageindex.com/groue/grdb.swift/documentation/grdb/valueobservation).
 - How to apply the recommendations of [Good Practices for Designing Record Types](../../GoodPracticesForDesigningRecordTypes.md).
 - How to feed SwiftUI previews with a transient database.
 
@@ -25,7 +25,7 @@ The topics covered in this demo are:
 
 - [AppDatabase.swift](GRDBAsyncDemo/AppDatabase.swift)
     
-    `AppDatabase` is the type that grants database access. It uses [DatabaseMigrator](../../Migrations.md) in order to setup the database schema.
+    `AppDatabase` is the type that grants database access. It uses [DatabaseMigrator](https://swiftpackageindex.com/groue/grdb.swift/documentation/grdb/databasemigrator) in order to setup the database schema.
 
 - [Persistence.swift](GRDBAsyncDemo/Persistence.swift)
     

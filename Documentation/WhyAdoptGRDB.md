@@ -149,16 +149,16 @@ Next, you choose the dispatch queue on which notifications happen (generally the
 
 Finally, all changes are notified, no matter how they are performed: record methods, raw SQL statements, foreign key cascades, or SQL triggers. GRDB roots its notification system in the rock-solid SQLite itself, so that high-level requests and raw SQL queries are equally supported.
 
-See [Database Observation](../README.md#database-changes-observation) for further information.
+See [Database Observation](https://swiftpackageindex.com/groue/grdb.swift/documentation/grdb/databaseobservation) for further information.
 
 
 ### Non-blocking database reads
 
-GRDB ships with two ways to access databases, [database queues](../README.md#database-queues) and [pools](../README.md#database-pools).
+GRDB ships with two ways to access databases, [database queues](https://swiftpackageindex.com/groue/grdb.swift/documentation/grdb/databasequeue) and [pools](https://swiftpackageindex.com/groue/grdb.swift/documentation/grdb/databasepool).
 
 Database queues look a lot like FMDB's [FMDatabaseQueue](https://github.com/ccgus/fmdb#using-fmdatabasequeue-and-thread-safety): they serialize database accesses in a serial dispatch queue. There is never more than one thread that is accessing the database. This means that a long running database transaction that happens in a background thread, such as the synchronization of your local database from a remote server, can block your UI. As long as the queue is busy, the main thread can't fetch the values it wants to display on screen.
 
-[Database pools](../README.md#database-pools) can lift these unwanted locks. With database pools, reads are generally non-blocking, unless the maximum number of concurrent reads has been reached (and this maximum number can be configured).
+[Database pools](https://swiftpackageindex.com/groue/grdb.swift/documentation/grdb/databasepool) can lift these unwanted locks. With database pools, reads are generally non-blocking, unless the maximum number of concurrent reads has been reached (and this maximum number can be configured).
 
 
 ### Strong and clear multi-threading guarantees
@@ -285,23 +285,22 @@ If this little tour of GRDB has convinced you, the real trip starts here: [GRDB]
 
 Happy GRDB! :gift:
 
-[Concurrency Guide]: Concurrency.md
+[Concurrency Guide]: https://swiftpackageindex.com/groue/grdb.swift/documentation/grdb/concurrency
 [Core Data]: https://developer.apple.com/documentation/coredata
-[DatabasePool]: ../README.md#database-pools
+[DatabasePool]: https://swiftpackageindex.com/groue/grdb.swift/documentation/grdb/databasepool
 [Diesel]: http://diesel.rs
 [FCModel]: https://github.com/marcoarment/FCModel
-[ValueObservation]: ../README.md#valueobservation
+[ValueObservation]: https://swiftpackageindex.com/groue/grdb.swift/documentation/grdb/valueobservation
 [Fluent]: https://github.com/vapor/fluent
-[FMDB]: http://github.com/ccgus/fmdb
-[GRDB]: http://github.com/groue/GRDB.swift
+[FMDB]: https://github.com/ccgus/fmdb
+[GRDB]: https://github.com/groue/GRDB.swift
 [PersistableRecord]: ../README.md#records
 [Realm]: http://realm.io
 [FetchableRecord]: ../README.md#records
-[SQLite.swift]: http://github.com/stephencelis/SQLite.swift
+[SQLite.swift]: https://github.com/stephencelis/SQLite.swift
 [StORM]: https://www.perfect.org/docs/StORM.html
-[Swift-Kuery]: http://github.com/IBM-Swift/Swift-Kuery
+[Swift-Kuery]: https://github.com/IBM-Swift/Swift-Kuery
 [TableRecord]: ../README.md#records
-[TransactionObserver]: ../README.md#transactionobserver-protocol
 [query interface]: ../README.md#the-query-interface
 [associations]: AssociationsBasics.md
 [Codable records]: ../README.md#codable-records

@@ -92,6 +92,11 @@ private struct FlatModel: FetchableRecord {
         self.t5count = row.scopes[Scopes.suffix]!["t5count"]
     }
     
+    @available(iOS 13.0, macOS 10.15.0, tvOS 13.0, watchOS 6.0, *)
+    static func modernAll() -> some FetchRequest<FlatModel> {
+        all()
+    }
+    
     static func all() -> AdaptedFetchRequest<SQLRequest<FlatModel>> {
         SQLRequest<FlatModel>(literal: testedLiteral).adapted { db in
             let adapters = try splittingRowAdapters(columnCounts: [
@@ -108,8 +113,8 @@ private struct FlatModel: FetchableRecord {
         }
     }
     
-    static func hierarchicalAll() -> AdaptedFetchRequest<SQLRequest<CodableFlatModel>> {
-        SQLRequest<CodableFlatModel>(literal: testedLiteral).adapted { db in
+    static func hierarchicalAll() -> AdaptedFetchRequest<SQLRequest<FlatModel>> {
+        SQLRequest<FlatModel>(literal: testedLiteral).adapted { db in
             let adapters = try splittingRowAdapters(columnCounts: [
                 T1.numberOfSelectedColumns(db),
                 T2.numberOfSelectedColumns(db),
@@ -132,6 +137,11 @@ private struct CodableFlatModel: FetchableRecord, Codable {
     var t2Right: T2?
     var t3: T3?
     var t5count: Int
+    
+    @available(iOS 13.0, macOS 10.15.0, tvOS 13.0, watchOS 6.0, *)
+    static func modernAll() -> some FetchRequest<CodableFlatModel> {
+        all()
+    }
     
     static func all() -> AdaptedFetchRequest<SQLRequest<CodableFlatModel>> {
         SQLRequest<CodableFlatModel>(literal: testedLiteral).adapted { db in
@@ -176,6 +186,11 @@ private struct CodableNestedModel: FetchableRecord, Codable {
     var t3: T3?
     var t5count: Int
     
+    @available(iOS 13.0, macOS 10.15.0, tvOS 13.0, watchOS 6.0, *)
+    static func modernAll() -> some FetchRequest<CodableNestedModel> {
+        all()
+    }
+    
     static func all() -> AdaptedFetchRequest<SQLRequest<CodableNestedModel>> {
         SQLRequest<CodableNestedModel>(literal: testedLiteral).adapted { db in
             let adapters = try splittingRowAdapters(columnCounts: [
@@ -198,29 +213,29 @@ private struct CodableNestedModel: FetchableRecord, Codable {
 
 class JoinSupportTests: GRDBTestCase {
     
-    override func setup(_ dbWriter: DatabaseWriter) throws {
+    override func setup(_ dbWriter: some DatabaseWriter) throws {
         try dbWriter.write { db in
             try db.create(table: "t1") { t in
-                t.column("id", .integer).primaryKey()
+                t.primaryKey("id", .integer)
                 t.column("name", .text).notNull()
             }
             try db.create(table: "t2") { t in
-                t.column("id", .integer).primaryKey()
+                t.primaryKey("id", .integer)
                 t.column("t1id", .integer).notNull().references("t1", onDelete: .cascade)
                 t.column("name", .text).notNull()
                 t.uniqueKey(["t1id", "name"])
             }
             try db.create(table: "t3") { t in
-                t.column("t1id", .integer).primaryKey().references("t1", onDelete: .cascade)
+                t.primaryKey("t1id", .integer).references("t1", onDelete: .cascade)
                 t.column("name", .text).notNull()
                 t.column("ignored", .integer)
             }
             try db.create(table: "t4") { t in
-                t.column("t1id", .integer).primaryKey().references("t1", onDelete: .cascade)
+                t.primaryKey("t1id", .integer).references("t1", onDelete: .cascade)
                 t.column("name", .text).notNull()
             }
             try db.create(table: "t5") { t in
-                t.column("id", .integer).primaryKey()
+                t.primaryKey("id", .integer)
                 t.column("t3id", .integer).references("t3", onDelete: .cascade)
                 t.column("t4id", .integer).references("t4", onDelete: .cascade)
                 t.column("name", .text).notNull()

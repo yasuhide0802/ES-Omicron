@@ -138,13 +138,13 @@ class PlayerListViewController: UITableViewController {
         playersCancellable = ValueObservation
             .tracking(request.fetchAll(_:))
             .start(
-                in: AppDatabase.shared.databaseReader,
+                in: AppDatabase.shared.reader,
                 // Immediate scheduling feeds the data source right on subscription,
                 // and avoids an undesired animation when the application starts.
                 scheduling: .immediate,
                 onError: { error in fatalError("Unexpected error: \(error)") },
                 onChange: { [weak self] players in
-                    guard let self = self else { return }
+                    guard let self else { return }
                     self.configureTitle(from: players)
                     self.configureDataSource(from: players)
                 })

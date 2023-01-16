@@ -827,7 +827,7 @@ class DatabasePoolConcurrencyTests: GRDBTestCase {
         let dbQueue = try makeDatabaseQueue(filename: dbName)
         
         try dbPool.write { db in
-            try db.create(table: "t") { $0.column("id", .integer).primaryKey() }
+            try db.create(table: "t") { $0.primaryKey("id", .integer) }
             try db.execute(sql: "INSERT INTO t DEFAULT VALUES")
         }
         
@@ -967,10 +967,6 @@ class DatabasePoolConcurrencyTests: GRDBTestCase {
     }
     
     func testTargetQueue() throws {
-        guard #available(OSX 10.12, tvOS 10.0, *) else {
-            throw XCTSkip("dispatchPrecondition(condition:) is not available")
-        }
-        
         func test(targetQueue: DispatchQueue) throws {
             dbConfiguration.targetQueue = targetQueue
             let dbPool = try makeDatabasePool()
@@ -995,10 +991,6 @@ class DatabasePoolConcurrencyTests: GRDBTestCase {
     }
     
     func testWriteTargetQueue() throws {
-        guard #available(OSX 10.12, tvOS 10.0, *) else {
-            throw XCTSkip("dispatchPrecondition(condition:) is not available")
-        }
-        
         func test(targetQueue: DispatchQueue, writeTargetQueue: DispatchQueue) throws {
             dbConfiguration.targetQueue = targetQueue
             dbConfiguration.writeTargetQueue = writeTargetQueue
@@ -1024,10 +1016,6 @@ class DatabasePoolConcurrencyTests: GRDBTestCase {
     }
     
     func testWriteTargetQueueReadOnly() throws {
-        guard #available(OSX 10.12, tvOS 10.0, *) else {
-            throw XCTSkip("dispatchPrecondition(condition:) is not available")
-        }
-        
         // Create a database before we perform read-only accesses
         _ = try makeDatabasePool(filename: "test")
         
@@ -1049,10 +1037,6 @@ class DatabasePoolConcurrencyTests: GRDBTestCase {
     }
 
     func testQoS() throws {
-        guard #available(OSX 10.12, tvOS 10.0, *) else {
-            throw XCTSkip("dispatchPrecondition(condition:) is not available")
-        }
-        
         func test(qos: DispatchQoS) throws {
             // https://forums.swift.org/t/what-is-the-default-target-queue-for-a-serial-queue/18094/5
             //
@@ -1111,7 +1095,7 @@ class DatabasePoolConcurrencyTests: GRDBTestCase {
         let dbPool = try makeDatabasePool()
         try dbPool.write { db in
             try db.create(table: "persons") { t in
-                t.column("id", .integer).primaryKey()
+                t.primaryKey("id", .integer)
             }
         }
         
@@ -1188,7 +1172,7 @@ class DatabasePoolConcurrencyTests: GRDBTestCase {
         let dbPool = try makeDatabasePool()
         try dbPool.write { db in
             try db.create(table: "persons") { t in
-                t.column("id", .integer).primaryKey()
+                t.primaryKey("id", .integer)
             }
         }
         
@@ -1320,7 +1304,7 @@ class DatabasePoolConcurrencyTests: GRDBTestCase {
             // Wait for read to start
             s1.wait()
             
-            dbPool.barrierWriteWithoutTransaction { _ in }
+            try! dbPool.barrierWriteWithoutTransaction { _ in }
             expectation.fulfill()
             s4.signal()
         }
@@ -1351,13 +1335,13 @@ class DatabasePoolConcurrencyTests: GRDBTestCase {
                 let coordinator = NSFileCoordinator(filePresenter: nil)
                 var coordinatorError: NSError?
                 var poolError: Error?
-                coordinator.coordinate(writingItemAt: dbURL, options: .forMerging, error: &coordinatorError, byAccessor: { url in
+                coordinator.coordinate(writingItemAt: dbURL, options: .forMerging, error: &coordinatorError) { url in
                     do {
                         _ = try DatabasePool(path: url.path)
                     } catch {
                         poolError = error
                     }
-                })
+                }
                 XCTAssert(poolError ?? coordinatorError == nil)
             }
         }
@@ -1365,27 +1349,27 @@ class DatabasePoolConcurrencyTests: GRDBTestCase {
     
     // MARK: - NSFileCoordinator sample code tests
     
-    // Test for sample code in Documentation/SharingADatabase.md.
+    // Test for sample code in Documentation.docc/DatabaseSharing.md.
     // This test passes if this method compiles
     private func openSharedDatabase(at databaseURL: URL) throws -> DatabasePool {
         let coordinator = NSFileCoordinator(filePresenter: nil)
         var coordinatorError: NSError?
         var dbPool: DatabasePool?
         var dbError: Error?
-        coordinator.coordinate(writingItemAt: databaseURL, options: .forMerging, error: &coordinatorError, byAccessor: { url in
+        coordinator.coordinate(writingItemAt: databaseURL, options: .forMerging, error: &coordinatorError) { url in
             do {
                 dbPool = try openDatabase(at: url)
             } catch {
                 dbError = error
             }
-        })
+        }
         if let error = dbError ?? coordinatorError {
             throw error
         }
         return dbPool!
     }
     
-    // Test for sample code in Documentation/SharingADatabase.md.
+    // Test for sample code in Documentation.docc/DatabaseSharing.md.
     // This test passes if this method compiles
     private func openDatabase(at databaseURL: URL) throws -> DatabasePool {
         let dbPool = try DatabasePool(path: databaseURL.path)
@@ -1394,27 +1378,27 @@ class DatabasePoolConcurrencyTests: GRDBTestCase {
         return dbPool
     }
     
-    // Test for sample code in Documentation/SharingADatabase.md.
+    // Test for sample code in Documentation.docc/DatabaseSharing.md.
     // This test passes if this method compiles
     private func openSharedReadOnlyDatabase(at databaseURL: URL) throws -> DatabasePool? {
         let coordinator = NSFileCoordinator(filePresenter: nil)
         var coordinatorError: NSError?
         var dbPool: DatabasePool?
         var dbError: Error?
-        coordinator.coordinate(readingItemAt: databaseURL, options: .withoutChanges, error: &coordinatorError, byAccessor: { url in
+        coordinator.coordinate(readingItemAt: databaseURL, options: .withoutChanges, error: &coordinatorError) { url in
             do {
                 dbPool = try openReadOnlyDatabase(at: url)
             } catch {
                 dbError = error
             }
-        })
+        }
         if let error = dbError ?? coordinatorError {
             throw error
         }
         return dbPool
     }
     
-    // Test for sample code in Documentation/SharingADatabase.md.
+    // Test for sample code in Documentation.docc/DatabaseSharing.md.
     // This test passes if this method compiles
     private func openReadOnlyDatabase(at databaseURL: URL) throws -> DatabasePool? {
         do {

@@ -28,19 +28,20 @@ private class Item : Record, Hashable {
         "items"
     }
     
-    required init(row: Row) {
+    required init(row: Row) throws {
         name = row["name"]
         email = row["email"]
-        super.init(row: row)
+        try super.init(row: row)
     }
     
-    override func encode(to container: inout PersistenceContainer) {
+    override func encode(to container: inout PersistenceContainer) throws {
         container["name"] = name
         container["email"] = email
     }
     
-    override func didInsert(with rowID: Int64, for column: String?) {
-        insertedRowIDColumn = column
+    override func didInsert(_ inserted: InsertionSuccess) {
+        super.didInsert(inserted)
+        insertedRowIDColumn = inserted.rowIDColumn
     }
     
     static func == (lhs: Item, rhs: Item) -> Bool {
@@ -55,7 +56,7 @@ private class Item : Record, Hashable {
 
 class RecordPrimaryKeyNoneTests: GRDBTestCase {
     
-    override func setup(_ dbWriter: DatabaseWriter) throws {
+    override func setup(_ dbWriter: some DatabaseWriter) throws {
         var migrator = DatabaseMigrator()
         migrator.registerMigration("createItem", migrate: Item.setup)
         try migrator.migrate(dbWriter)
@@ -107,6 +108,18 @@ class RecordPrimaryKeyNoneTests: GRDBTestCase {
         }
     }
     
+    func testFindWithKey() throws {
+        let dbQueue = try makeDatabaseQueue()
+        try dbQueue.inDatabase { db in
+            let record = Item(email: "item@example.com")
+            try record.insert(db)
+            
+            let fetchedRecord = try Item.find(db, key: ["email": record.email])
+            XCTAssertTrue(fetchedRecord.email == record.email)
+            XCTAssertEqual(lastSQLQuery, "SELECT * FROM \"items\" WHERE \"email\" = 'item@example.com'")
+        }
+    }
+
     
     // MARK: - Fetch With Key Request
     
@@ -239,6 +252,27 @@ class RecordPrimaryKeyNoneTests: GRDBTestCase {
         }
     }
     
+    func testFindWithPrimaryKey() throws {
+        let dbQueue = try makeDatabaseQueue()
+        try dbQueue.inDatabase { db in
+            let record = Item(name: "Table")
+            try record.insert(db)
+            let id = db.lastInsertedRowID
+            
+            do {
+                let id: Int64? = nil
+                _ = try Item.find(db, key: id)
+                XCTFail("Expected RecordError")
+            } catch RecordError.recordNotFound(databaseTableName: "items", key: ["rowid": .null]) { }
+
+            do {
+                let fetchedRecord = try Item.find(db, key: id)
+                XCTAssertTrue(fetchedRecord.name == record.name)
+                XCTAssertEqual(lastSQLQuery, "SELECT * FROM \"items\" WHERE \"rowid\" = \(id)")
+            }
+        }
+    }
+
     
     // MARK: - Fetch With Primary Key Request
     

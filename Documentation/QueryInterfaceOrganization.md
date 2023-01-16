@@ -179,9 +179,9 @@ protocol DatabaseValueConvertible: SQLExpressible {
 `DerivableRequest` is the protocol for query interface requests and associations that can be refined. It is adopted by [QueryInterfaceRequest] and [Association].
 
 ```swift
-protocol DerivableRequest: AggregatingRequest, FilteredRequest,
-                           JoinableRequest, OrderedRequest,
-                           SelectionRequest, TableRequest
+protocol DerivableRequest<RowDecoder>: AggregatingRequest, FilteredRequest,
+                                       JoinableRequest, OrderedRequest,
+                                       SelectionRequest, TableRequest
 {
     func distinct() -> Self
     func with<RowDecoder>(_ cte: CommonTableExpression<RowDecoder>) -> Self
@@ -202,7 +202,7 @@ DerivableRequest makes it possible to build reusable code snippets that apply to
 `FetchRequest` is the protocol for requests that can fetch. It is adopted by [QueryInterfaceRequest] and [SQLRequest]. It conforms to [SQLSubqueryable] and [DatabaseRegionConvertible].
 
 ```swift
-protocol FetchRequest: SQLSubqueryable, DatabaseRegionConvertible {
+protocol FetchRequest<RowDecoder>: SQLSubqueryable, DatabaseRegionConvertible {
     /// The type that tells how fetched database rows should be interpreted.
     associatedtype RowDecoder
     
@@ -607,8 +607,8 @@ myRequest(Player.select(...).filter(...))
 [association aggregates]: AssociationsBasics.md#association-aggregates
 [Column]: #column
 [ColumnExpression]: #columnexpression
-[DatabaseRegionConvertible]: #databaseregionconvertible
-[DatabaseRegionObservation]: ../README.md#databaseregionobservation
+[DatabaseRegionConvertible]: https://swiftpackageindex.com/groue/grdb.swift/documentation/grdb/databaseregionconvertible
+[DatabaseRegionObservation]: https://swiftpackageindex.com/groue/grdb.swift/documentation/grdb/databaseregionobservation
 [DatabaseValue]: #databasevalue
 [DatabaseValueConvertible]: #databasevalueconvertible
 [DerivableRequest]: #derivablerequest

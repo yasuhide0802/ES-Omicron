@@ -6,50 +6,61 @@ extension Database {
     
     /// Returns a new prepared statement that can be reused.
     ///
-    ///     let statement = try db.makeStatement(sql: "SELECT * FROM player WHERE id = ?")
-    ///     let player1 = try Player.fetchOne(statement, arguments: [1])!
-    ///     let player2 = try Player.fetchOne(statement, arguments: [2])!
+    /// For example:
     ///
-    ///     let statement = try db.makeStatement(sql: "INSERT INTO player (name) VALUES (?)")
-    ///     try statement.execute(arguments: ["Arthur"])
-    ///     try statement.execute(arguments: ["Barbara"])
+    /// ```swift
+    /// let statement = try db.makeStatement(sql: "SELECT * FROM player WHERE id = ?")
+    /// let player1 = try Player.fetchOne(statement, arguments: [1])!
+    /// let player2 = try Player.fetchOne(statement, arguments: [2])!
     ///
-    /// - parameter sql: An SQL query.
-    /// - returns: A Statement.
-    /// - throws: A DatabaseError whenever SQLite could not parse the sql query.
+    /// let statement = try db.makeStatement(sql: "INSERT INTO player (name) VALUES (?)")
+    /// try statement.execute(arguments: ["Arthur"])
+    /// try statement.execute(arguments: ["Barbara"])
+    /// ```
+    ///
+    /// - parameter sql: An SQL string.
+    /// - returns: A prepared statement.
+    /// - throws: A ``DatabaseError`` whenever an SQLite error occurs.
     public func makeStatement(sql: String) throws -> Statement {
         try makeStatement(sql: sql, prepFlags: 0)
     }
     
     /// Returns a new prepared statement that can be reused.
     ///
-    ///     let statement = try db.makeStatement(literal: "SELECT * FROM player WHERE id = ?")
-    ///     let player1 = try Player.fetchOne(statement, arguments: [1])!
-    ///     let player2 = try Player.fetchOne(statement, arguments: [2])!
+    /// For example:
     ///
-    ///     let statement = try db.makeStatement(literal: "INSERT INTO player (name) VALUES (?)")
-    ///     try statement.execute(arguments: ["Arthur"])
-    ///     try statement.execute(arguments: ["Barbara"])
+    /// ```swift
+    /// let statement = try db.makeStatement(literal: "SELECT * FROM player WHERE id = ?")
+    /// let player1 = try Player.fetchOne(statement, arguments: [1])!
+    /// let player2 = try Player.fetchOne(statement, arguments: [2])!
     ///
-    /// - parameter sqlLiteral: An `SQL` literal.
-    /// - returns: A Statement.
-    /// - throws: A DatabaseError whenever SQLite could not parse the sql query.
-    /// - precondition: No argument must be set, or all arguments must be set.
-    ///   An error is raised otherwise.
+    /// let statement = try db.makeStatement(literal: "INSERT INTO player (name) VALUES (?)")
+    /// try statement.execute(arguments: ["Arthur"])
+    /// try statement.execute(arguments: ["Barbara"])
+    /// ```
     ///
-    ///         // OK
-    ///         try makeStatement(literal: """
-    ///             SELECT COUNT(*) FROM player WHERE score > ?
-    ///             """)
-    ///         try makeStatement(literal: """
-    ///             SELECT COUNT(*) FROM player WHERE score > \(1000)
-    ///             """)
+    /// In the provided literal, no argument must be set, or all arguments must
+    /// be set. An error is raised otherwise. For example:
     ///
-    ///         // NOT OK
-    ///         try makeStatement(literal: """
-    ///             SELECT COUNT(*) FROM player
-    ///             WHERE color = ? AND score > \(1000)
-    ///             """)
+    /// ```swift
+    /// // OK
+    /// try makeStatement(literal: """
+    ///     SELECT COUNT(*) FROM player WHERE score > ?
+    ///     """)
+    /// try makeStatement(literal: """
+    ///     SELECT COUNT(*) FROM player WHERE score > \(1000)
+    ///     """)
+    ///
+    /// // NOT OK (first argument is not set, but second is)
+    /// try makeStatement(literal: """
+    ///     SELECT COUNT(*) FROM player
+    ///     WHERE color = ? AND score > \(1000)
+    ///     """)
+    ///  ```
+    ///
+    /// - parameter sqlLiteral: An ``SQL`` literal.
+    /// - returns: A prepared statement.
+    /// - throws: A ``DatabaseError`` whenever an SQLite error occurs.
     public func makeStatement(literal sqlLiteral: SQL) throws -> Statement {
         let (sql, arguments) = try sqlLiteral.build(self)
         let statement = try makeStatement(sql: sql)
@@ -62,56 +73,18 @@ extension Database {
     
     /// Returns a new prepared statement that can be reused.
     ///
-    ///     let statement = try db.makeSelectStatement(sql: "SELECT * FROM player WHERE id = ?")
-    ///     let player1 = try Player.fetchOne(statement, arguments: [1])!
-    ///     let player2 = try Player.fetchOne(statement, arguments: [2])!
-    ///
-    /// - parameter sql: An SQL query.
-    /// - returns: A Statement.
-    /// - throws: A DatabaseError whenever SQLite could not parse the sql query.
-    @available(*, deprecated, renamed: "makeStatement(sql:)")
-    public func makeSelectStatement(sql: String) throws -> Statement {
-        try makeStatement(sql: sql)
-    }
-    
-    /// Returns a new prepared statement that can be reused.
-    ///
-    /// - parameter sqlLiteral: An `SQL` literal.
-    /// - returns: A Statement.
-    /// - throws: A DatabaseError whenever SQLite could not parse the sql query.
-    /// - precondition: No argument must be set, or all arguments must be set.
-    ///   An error is raised otherwise.
-    ///
-    ///         // OK
-    ///         try makeSelectStatement(literal: """
-    ///             SELECT COUNT(*) FROM player WHERE score > ?
-    ///             """)
-    ///         try makeSelectStatement(literal: """
-    ///             SELECT COUNT(*) FROM player WHERE score > \(1000)
-    ///             """)
-    ///
-    ///         // NOT OK
-    ///         try makeSelectStatement(literal: """
-    ///             SELECT COUNT(*) FROM player
-    ///             WHERE color = ? AND score > \(1000)
-    ///             """)
-    @available(*, deprecated, renamed: "makeStatement(literal:)")
-    public func makeSelectStatement(literal sqlLiteral: SQL) throws -> Statement {
-        try makeStatement(literal: sqlLiteral)
-    }
-    
-    /// Returns a new prepared statement that can be reused.
+    /// For example:
     ///
     ///     let statement = try db.makeStatement(sql: "SELECT COUNT(*) FROM player WHERE score > ?", prepFlags: 0)
     ///     let moreThanTwentyCount = try Int.fetchOne(statement, arguments: [20])!
     ///     let moreThanThirtyCount = try Int.fetchOne(statement, arguments: [30])!
     ///
-    /// - parameter sql: An SQL query.
+    /// - parameter sql: An SQL string.
     /// - parameter prepFlags: Flags for sqlite3_prepare_v3 (available from
     ///   SQLite 3.20.0, see <http://www.sqlite.org/c3ref/prepare.html>)
-    /// - returns: A Statement.
-    /// - throws: A DatabaseError whenever SQLite could not parse the sql query.
-    func makeStatement(sql: String, prepFlags: Int32) throws -> Statement {
+    /// - returns: A prepared statement.
+    /// - throws: A ``DatabaseError`` whenever an SQLite error occurs.
+    func makeStatement(sql: String, prepFlags: CUnsignedInt) throws -> Statement {
         let statements = SQLStatementCursor(database: self, sql: sql, arguments: nil, prepFlags: prepFlags)
         guard let statement = try statements.next() else {
             throw DatabaseError(
@@ -145,53 +118,64 @@ extension Database {
     
     /// Returns a prepared statement that can be reused.
     ///
-    ///     let statement = try db.cachedStatement(sql: "SELECT * FROM player WHERE id = ?")
-    ///     let player1 = try Player.fetchOne(statement, arguments: [1])!
-    ///     let player2 = try Player.fetchOne(statement, arguments: [2])!
+    /// For example:
     ///
-    ///     let statement = try db.cachedStatement(sql: "INSERT INTO player (name) VALUES (?)")
-    ///     try statement.execute(arguments: ["Arthur"])
-    ///     try statement.execute(arguments: ["Barbara"])
+    /// ```swift
+    /// let statement = try db.cachedStatement(sql: "SELECT * FROM player WHERE id = ?")
+    /// let player1 = try Player.fetchOne(statement, arguments: [1])!
+    /// let player2 = try Player.fetchOne(statement, arguments: [2])!
+    ///
+    /// let statement = try db.cachedStatement(sql: "INSERT INTO player (name) VALUES (?)")
+    /// try statement.execute(arguments: ["Arthur"])
+    /// try statement.execute(arguments: ["Barbara"])
+    /// ```
     ///
     /// The returned statement may have already been used: it may or may not
     /// contain values for its eventual arguments.
     ///
-    /// - parameter sql: An SQL query.
-    /// - returns: A Statement.
-    /// - throws: A DatabaseError whenever SQLite could not parse the sql query.
+    /// - parameter sql: An SQL string.
+    /// - returns: A prepared statement.
+    /// - throws: A ``DatabaseError`` whenever an SQLite error occurs.
     public func cachedStatement(sql: String) throws -> Statement {
         try publicStatementCache.statement(sql)
     }
     
     /// Returns a prepared statement that can be reused.
     ///
-    ///     let statement = try db.cachedStatement(literal: "SELECT * FROM player WHERE id = ?")
-    ///     let player1 = try Player.fetchOne(statement, arguments: [1])!
-    ///     let player2 = try Player.fetchOne(statement, arguments: [2])!
+    /// For example:
     ///
-    ///     let statement = try db.cachedStatement(literal: "INSERT INTO player (name) VALUES (?)")
-    ///     try statement.execute(arguments: ["Arthur"])
-    ///     try statement.execute(arguments: ["Barbara"])
+    /// ```swift
+    /// let statement = try db.cachedStatement(literal: "SELECT * FROM player WHERE id = ?")
+    /// let player1 = try Player.fetchOne(statement, arguments: [1])!
+    /// let player2 = try Player.fetchOne(statement, arguments: [2])!
     ///
-    /// - parameter sqlLiteral: An `SQL` literal.
-    /// - returns: A Statement.
-    /// - throws: A DatabaseError whenever SQLite could not parse the sql query.
-    /// - precondition: No argument must be set, or all arguments must be set.
-    ///   An error is raised otherwise.
+    /// let statement = try db.cachedStatement(literal: "INSERT INTO player (name) VALUES (?)")
+    /// try statement.execute(arguments: ["Arthur"])
+    /// try statement.execute(arguments: ["Barbara"])
+    /// ```
     ///
-    ///         // OK
-    ///         try cachedStatement(literal: """
-    ///             SELECT COUNT(*) FROM player WHERE score > ?
-    ///             """)
-    ///         try cachedStatement(literal: """
-    ///             SELECT COUNT(*) FROM player WHERE score > \(1000)
-    ///             """)
+    /// In the provided literal, no argument must be set, or all arguments must
+    /// be set. An error is raised otherwise. For example:
     ///
-    ///         // NOT OK
-    ///         try cachedStatement(literal: """
-    ///             SELECT COUNT(*) FROM player
-    ///             WHERE color = ? AND score > \(1000)
-    ///             """)
+    /// ```swift
+    /// // OK
+    /// try cachedStatement(literal: """
+    ///     SELECT COUNT(*) FROM player WHERE score > ?
+    ///     """)
+    /// try cachedStatement(literal: """
+    ///     SELECT COUNT(*) FROM player WHERE score > \(1000)
+    ///     """)
+    ///
+    /// // NOT OK (first argument is not set, but second is)
+    /// try cachedStatement(literal: """
+    ///     SELECT COUNT(*) FROM player
+    ///     WHERE color = ? AND score > \(1000)
+    ///     """)
+    /// ```
+    ///
+    /// - parameter sqlLiteral: An ``SQL`` literal.
+    /// - returns: A prepared statement.
+    /// - throws: A ``DatabaseError`` whenever an SQLite error occurs.
     public func cachedStatement(literal sqlLiteral: SQL) throws -> Statement {
         let (sql, arguments) = try sqlLiteral.build(self)
         let statement = try cachedStatement(sql: sql)
@@ -202,213 +186,100 @@ extension Database {
         return statement
     }
     
-    /// Returns a prepared statement that can be reused.
-    ///
-    ///     let statement = try db.cachedSelectStatement(sql: "SELECT COUNT(*) FROM player WHERE score > ?")
-    ///     let moreThanTwentyCount = try Int.fetchOne(statement, arguments: [20])!
-    ///     let moreThanThirtyCount = try Int.fetchOne(statement, arguments: [30])!
-    ///
-    /// The returned statement may have already been used: it may or may not
-    /// contain values for its eventual arguments.
-    ///
-    /// - parameter sql: An SQL query.
-    /// - returns: A Statement.
-    /// - throws: A DatabaseError whenever SQLite could not parse the sql query.
-    @available(*, deprecated, renamed: "cachedStatement(sql:)")
-    public func cachedSelectStatement(sql: String) throws -> Statement {
-        try cachedStatement(sql: sql)
-    }
-    
-    /// Returns a prepared statement that can be reused.
-    ///
-    ///     let statement = try db.cachedSelectStatement(literal: "SELECT COUNT(*) FROM player WHERE score > \(20)")
-    ///     let moreThanTwentyCount = try Int.fetchOne(statement)!
-    ///
-    /// - parameter sqlLiteral: An `SQL` literal.
-    /// - returns: A Statement.
-    /// - throws: A DatabaseError whenever SQLite could not parse the sql query.
-    /// - precondition: No argument must be set, or all arguments must be set.
-    ///   An error is raised otherwise.
-    ///
-    ///         // OK
-    ///         try cachedSelectStatement(literal: """
-    ///             SELECT COUNT(*) FROM player WHERE score > ?
-    ///             """)
-    ///         try cachedSelectStatement(literal: """
-    ///             SELECT COUNT(*) FROM player WHERE score > \(1000)
-    ///             """)
-    ///
-    ///         // NOT OK
-    ///         try cachedSelectStatement(literal: """
-    ///             SELECT COUNT(*) FROM player
-    ///             WHERE color = ? AND score > \(1000)
-    ///             """)
-    @available(*, deprecated, renamed: "cachedStatement(literal:)")
-    public func cachedSelectStatement(literal sqlLiteral: SQL) throws -> Statement {
-        try cachedStatement(literal: sqlLiteral)
-    }
-    
     /// Returns a cached statement that does not conflict with user's cached statements.
     func internalCachedStatement(sql: String) throws -> Statement {
         try internalStatementCache.statement(sql)
     }
     
-    /// Returns a new prepared statement that can be reused.
+    /// Returns a cursor of prepared statements.
     ///
-    ///     let statement = try db.makeUpdateStatement(sql: "INSERT INTO player (name) VALUES (?)")
-    ///     try statement.execute(arguments: ["Arthur"])
-    ///     try statement.execute(arguments: ["Barbara"])
+    /// For example:
     ///
-    /// - parameter sql: An SQL query.
-    /// - returns: An UpdateStatement.
-    /// - throws: A DatabaseError whenever SQLite could not parse the sql query.
-    @available(*, deprecated, renamed: "makeStatement(sql:)")
-    public func makeUpdateStatement(sql: String) throws -> Statement {
-        try makeStatement(sql: sql)
-    }
-    
-    /// Returns a new prepared statement that can be reused.
+    /// ```swift
+    /// let statements = try db.allStatements(sql: """
+    ///     INSERT INTO player (name) VALUES (?);
+    ///     INSERT INTO player (name) VALUES (?);
+    ///     INSERT INTO player (name) VALUES (?);
+    ///     """, arguments: ["Arthur", "Barbara", "O'Brien"])
+    /// while let statement = try statements.next() {
+    ///     try statement.execute()
+    /// }
+    /// ```
     ///
-    /// - parameter sqlLiteral: An `SQL` literal.
-    /// - returns: A Statement.
-    /// - throws: A DatabaseError whenever SQLite could not parse the sql query.
-    /// - precondition: No argument must be set, or all arguments must be set.
-    ///   An error is raised otherwise.
+    /// The `arguments` parameter must be nil, or all arguments must be set. The
+    /// returned cursor will throw an error otherwise. For example:
     ///
-    ///         // OK
-    ///         try makeUpdateStatement(literal: """
-    ///             UPDATE player SET name = ?
-    ///             """)
-    ///         try makeUpdateStatement(literal: """
-    ///             UPDATE player SET name = \("O'Brien")
-    ///             """)
+    /// ```swift
+    /// // OK
+    /// try allStatements(sql: """
+    ///     SELECT COUNT(*) FROM player WHERE score < ?;
+    ///     SELECT COUNT(*) FROM player WHERE score > ?;
+    ///     """)
     ///
-    ///         // NOT OK
-    ///         try makeUpdateStatement(literal: """
-    ///             UPDATE player SET name = ?, score = \(10)
-    ///             """)
-    @available(*, deprecated, renamed: "makeStatement(literal:)")
-    public func makeUpdateStatement(literal sqlLiteral: SQL) throws -> Statement {
-        try makeStatement(literal: sqlLiteral)
-    }
-    
-    /// Returns a prepared statement that can be reused.
+    /// try allStatements(sql: """
+    ///     SELECT COUNT(*) FROM player WHERE score < ?;
+    ///     SELECT COUNT(*) FROM player WHERE score > ?;
+    ///     """, arguments: [1000, 1000])
     ///
-    ///     let statement = try db.cachedUpdateStatement(sql: "INSERT INTO player (name) VALUES (?)")
-    ///     try statement.execute(arguments: ["Arthur"])
-    ///     try statement.execute(arguments: ["Barbara"])
-    ///
-    /// The returned statement may have already been used: it may or may not
-    /// contain values for its eventual arguments.
-    ///
-    /// - parameter sql: An SQL query.
-    /// - returns: A Statement.
-    /// - throws: A DatabaseError whenever SQLite could not parse the sql query.
-    @available(*, deprecated, renamed: "cachedStatement(sql:)")
-    public func cachedUpdateStatement(sql: String) throws -> Statement {
-        try cachedStatement(sql: sql)
-    }
-    
-    /// Returns a new prepared statement that can be reused.
-    ///
-    /// - parameter sqlLiteral: An `SQL` literal.
-    /// - returns: A Statement.
-    /// - throws: A DatabaseError whenever SQLite could not parse the sql query.
-    /// - precondition: No argument must be set, or all arguments must be set.
-    ///   An error is raised otherwise.
-    ///
-    ///         // OK
-    ///         try cachedUpdateStatement(literal: """
-    ///             UPDATE player SET name = ?
-    ///             """)
-    ///         try cachedUpdateStatement(literal: """
-    ///             UPDATE player SET name = \("O'Brien")
-    ///             """)
-    ///
-    ///         // NOT OK
-    ///         try cachedUpdateStatement(literal: """
-    ///             UPDATE player SET name = ?, score = \(10)
-    ///             """)
-    @available(*, deprecated, renamed: "cachedStatement(sql:)")
-    public func cachedUpdateStatement(literal sqlLiteral: SQL) throws -> Statement {
-        try cachedStatement(literal: sqlLiteral)
-    }
-    
-    /// Returns a cursor of all SQL statements separated by semi-colons.
-    ///
-    ///     let statements = try db.allStatements(sql: """
-    ///         INSERT INTO player (name) VALUES (?);
-    ///         INSERT INTO player (name) VALUES (?);
-    ///         INSERT INTO player (name) VALUES (?);
-    ///         """, arguments: ["Arthur", "Barbara", "O'Brien"])
-    ///     while let statement = try statements.next() {
-    ///         try statement.execute()
-    ///     }
+    /// // NOT OK (first argument is set, but second is not)
+    /// try allStatements(sql: """
+    ///     SELECT COUNT(*) FROM player WHERE score < ?;
+    ///     SELECT COUNT(*) FROM player WHERE score > ?;
+    ///     """, arguments: [1000])
+    /// ```
     ///
     /// - parameters:
-    ///     - sql: An SQL query.
+    ///     - sql: An SQL string.
     ///     - arguments: Statement arguments.
-    /// - returns: A cursor of `Statement`
-    /// - throws: A DatabaseError whenever an SQLite error occurs.
-    /// - precondition: Arguments must be nil, or all arguments must be set.
-    ///   The returned cursor will throw an error otherwise.
-    ///
-    ///         // OK
-    ///         try allStatements(sql: """
-    ///             SELECT COUNT(*) FROM player WHERE score < ?;
-    ///             SELECT COUNT(*) FROM player WHERE score > ?;
-    ///             """)
-    ///         try allStatements(sql: """
-    ///             SELECT COUNT(*) FROM player WHERE score < ?;
-    ///             SELECT COUNT(*) FROM player WHERE score > ?;
-    ///             """, arguments: [1000, 1000])
-    ///
-    ///         // NOT OK
-    ///         try allStatements(sql: """
-    ///             SELECT COUNT(*) FROM player WHERE score < ?;
-    ///             SELECT COUNT(*) FROM player WHERE score > ?;
-    ///             """, arguments: [1000])
+    /// - returns: A cursor of prepared ``Statement``.
+    /// - throws: A ``DatabaseError`` whenever an SQLite error occurs.
     public func allStatements(sql: String, arguments: StatementArguments? = nil)
     throws -> SQLStatementCursor
     {
         SQLStatementCursor(database: self, sql: sql, arguments: arguments)
     }
 
-    /// Returns a cursor of all SQL statements separated by semi-colons.
+    /// Returns a cursor of prepared statements.
     ///
-    /// Literals allow you to safely embed raw values in your SQL, without any
-    /// risk of syntax errors or SQL injection:
+    /// ``SQL`` literals allow you to safely embed raw values in your SQL,
+    /// without any risk of syntax errors or SQL injection:
     ///
-    ///     let statements = try db.allStatements(literal: """
-    ///         INSERT INTO player (name) VALUES (\("Arthur"));
-    ///         INSERT INTO player (name) VALUES (\("Barbara"));
-    ///         INSERT INTO player (name) VALUES (\("O'Brien"));
-    ///         """)
-    ///     while let statement = try statements.next() {
-    ///         try statement.execute()
-    ///     }
+    /// ```swift
+    /// let statements = try db.allStatements(literal: """
+    ///     INSERT INTO player (name) VALUES (\("Arthur"));
+    ///     INSERT INTO player (name) VALUES (\("Barbara"));
+    ///     INSERT INTO player (name) VALUES (\("O'Brien"));
+    ///     """)
+    /// while let statement = try statements.next() {
+    ///     try statement.execute()
+    /// }
+    /// ```
     ///
-    /// - parameter sqlLiteral: An `SQL` literal.
-    /// - returns: A cursor of `Statement`
-    /// - throws: A DatabaseError whenever an SQLite error occurs.
-    /// - precondition: No argument must be set, or all arguments must be set.
-    ///   The returned cursor will throw an error otherwise.
+    /// In the provided literal, no argument must be set, or all arguments must
+    /// be set. The returned cursor will throw an error otherwise. For example:
     ///
-    ///         // OK
-    ///         try allStatements(literal: """
-    ///             SELECT COUNT(*) FROM player WHERE score < ?;
-    ///             SELECT COUNT(*) FROM player WHERE score > ?;
-    ///             """)
-    ///         try allStatements(literal: """
-    ///             SELECT COUNT(*) FROM player WHERE score < \(1000);
-    ///             SELECT COUNT(*) FROM player WHERE score > \(1000);
-    ///             """)
+    /// ```swift
+    /// // OK
+    /// try allStatements(literal: """
+    ///     SELECT COUNT(*) FROM player WHERE score < ?;
+    ///     SELECT COUNT(*) FROM player WHERE score > ?;
+    ///     """)
     ///
-    ///         // NOT OK
-    ///         try allStatements(literal: """
-    ///             SELECT COUNT(*) FROM player WHERE score < \(1000);
-    ///             SELECT COUNT(*) FROM player WHERE score > ?;
-    ///             """)
+    /// try allStatements(literal: """
+    ///     SELECT COUNT(*) FROM player WHERE score < \(1000);
+    ///     SELECT COUNT(*) FROM player WHERE score > \(1000);
+    ///     """)
+    ///
+    /// // NOT OK (first argument is set, but second is not)
+    /// try allStatements(literal: """
+    ///     SELECT COUNT(*) FROM player WHERE score < \(1000);
+    ///     SELECT COUNT(*) FROM player WHERE score > ?;
+    ///     """)
+    /// ```
+    ///
+    /// - parameter sqlLiteral: An ``SQL`` literal.
+    /// - returns: A cursor of prepared ``Statement``.
+    /// - throws: A ``DatabaseError`` whenever an SQLite error occurs.
     public func allStatements(literal sqlLiteral: SQL) throws -> SQLStatementCursor {
         let context = SQLGenerationContext(self)
         let sql = try sqlLiteral.sql(context)
@@ -418,47 +289,49 @@ extension Database {
         return SQLStatementCursor(database: self, sql: sql, arguments: arguments)
     }
     
-    /// Executes one or several SQL statements, separated by semi-colons.
+    /// Executes one or several SQL statements.
     ///
-    ///     try db.execute(
-    ///         sql: "INSERT INTO player (name) VALUES (:name)",
-    ///         arguments: ["name": "Arthur"])
+    /// For example:
     ///
-    ///     try db.execute(sql: """
-    ///         INSERT INTO player (name) VALUES (?);
-    ///         INSERT INTO player (name) VALUES (?);
-    ///         INSERT INTO player (name) VALUES (?);
-    ///         """, arguments: ["Arthur", "Barbara", "O'Brien"])
+    /// ```swift
+    /// try db.execute(
+    ///     sql: "INSERT INTO player (name) VALUES (:name)",
+    ///     arguments: ["name": "Arthur"])
     ///
-    /// This method may throw a DatabaseError.
+    /// try db.execute(sql: """
+    ///     INSERT INTO player (name) VALUES (?);
+    ///     INSERT INTO player (name) VALUES (?);
+    ///     INSERT INTO player (name) VALUES (?);
+    ///     """, arguments: ["Arthur", "Barbara", "O'Brien"])
+    /// ```
     ///
     /// - parameters:
-    ///     - sql: An SQL query.
+    ///     - sql: An SQL string.
     ///     - arguments: Statement arguments.
-    /// - throws: A DatabaseError whenever an SQLite error occurs.
+    /// - throws: A ``DatabaseError`` whenever an SQLite error occurs.
     public func execute(sql: String, arguments: StatementArguments = StatementArguments()) throws {
         try execute(literal: SQL(sql: sql, arguments: arguments))
     }
     
-    /// Executes one or several SQL statements, separated by semi-colons.
+    /// Executes one or several SQL statements.
     ///
-    /// Literals allow you to safely embed raw values in your SQL, without any
-    /// risk of syntax errors or SQL injection:
+    /// ``SQL`` literals allow you to safely embed raw values in your SQL,
+    /// without any risk of syntax errors or SQL injection:
     ///
-    ///     try db.execute(literal: """
-    ///         INSERT INTO player (name) VALUES (\("Arthur"))
-    ///         """)
+    /// ```swift
+    /// try db.execute(literal: """
+    ///     INSERT INTO player (name) VALUES (\("Arthur"))
+    ///     """)
     ///
-    ///     try db.execute(literal: """
-    ///         INSERT INTO player (name) VALUES (\("Arthur"));
-    ///         INSERT INTO player (name) VALUES (\("Barbara"));
-    ///         INSERT INTO player (name) VALUES (\("O'Brien"));
-    ///         """)
+    /// try db.execute(literal: """
+    ///     INSERT INTO player (name) VALUES (\("Arthur"));
+    ///     INSERT INTO player (name) VALUES (\("Barbara"));
+    ///     INSERT INTO player (name) VALUES (\("O'Brien"));
+    ///     """)
+    /// ```
     ///
-    /// This method may throw a DatabaseError.
-    ///
-    /// - parameter sqlLiteral: An `SQL` literal.
-    /// - throws: A DatabaseError whenever an SQLite error occurs.
+    /// - parameter sqlLiteral: An ``SQL`` literal.
+    /// - throws: A ``DatabaseError`` whenever an SQLite error occurs.
     public func execute(literal sqlLiteral: SQL) throws {
         let statements = try allStatements(literal: sqlLiteral)
         while let statement = try statements.next() {
@@ -467,17 +340,18 @@ extension Database {
     }
 }
 
-public class SQLStatementCursor: Cursor {
+/// A cursor over all statements in an SQL string.
+public class SQLStatementCursor {
     private let database: Database
     private let cString: ContiguousArray<CChar>
-    private let prepFlags: CInt
+    private let prepFlags: CUnsignedInt
     private let initialArgumentCount: Int?
     
     // Mutated by iteration
     private var offset: Int // offset in the C string
     private var arguments: StatementArguments? // Nil when arguments are set later
     
-    init(database: Database, sql: String, arguments: StatementArguments?, prepFlags: CInt = 0) {
+    init(database: Database, sql: String, arguments: StatementArguments?, prepFlags: CUnsignedInt = 0) {
         self.database = database
         self.cString = sql.utf8CString
         self.prepFlags = prepFlags
@@ -485,30 +359,32 @@ public class SQLStatementCursor: Cursor {
         self.offset = 0
         self.arguments = arguments
     }
-    
+}
+
+extension SQLStatementCursor: Cursor {
     public func next() throws -> Statement? {
         guard offset < cString.count - 1 /* trailing \0 */ else {
+            // End of C string -> end of cursor.
             try checkArgumentsAreEmpty()
             return nil
         }
         
         return try cString.withUnsafeBufferPointer { buffer in
-            guard let baseAddress = buffer.baseAddress else {
-                // Should never happen since buffer contains at least
-                // the trailing \0
-                return nil
-            }
+            let baseAddress = buffer.baseAddress! // never nil because the buffer contains the trailing \0.
             
+            // Compile next statement
             var statementEnd: UnsafePointer<Int8>? = nil
-            let compiledStatement = try Statement(
+            let statement = try Statement(
                 database: database,
                 statementStart: baseAddress + offset,
                 statementEnd: &statementEnd,
                 prepFlags: prepFlags)
             
-            offset = statementEnd! - baseAddress
+            // Advance to next statement
+            offset = statementEnd! - baseAddress // never nil because statement compilation did not fail.
             
-            guard let statement = compiledStatement else {
+            guard let statement else {
+                // No statement found -> end of cursor.
                 try checkArgumentsAreEmpty()
                 return nil
             }
@@ -545,18 +421,20 @@ extension Database {
     /// Makes sure statement can be executed, and prepares database observation.
     @usableFromInline
     func statementWillExecute(_ statement: Statement) throws {
-        // Two things must prevent the statement from executing: aborted
-        // transactions, and database suspension.
+        // Aborted transactions prevent statement execution (see the
+        // documentation of this method for more information).
         try checkForAbortedTransaction(sql: statement.sql, arguments: statement.arguments)
+        
+        // Suspended databases must not execute statements that create the risk
+        // of `0xdead10cc` exception (see the documentation of this method for
+        // more information).
         try checkForSuspensionViolation(from: statement)
         
-        // Database observation: record what the statement is looking at.
-        if isRecordingSelectedRegion {
-            selectedRegion.formUnion(statement.databaseRegion)
-        }
+        // Record the database region selected by the statement execution.
+        try registerAccess(to: statement.databaseRegion)
         
         // Database observation: prepare transaction observers.
-        observationBroker.statementWillExecute(statement)
+        observationBroker?.statementWillExecute(statement)
     }
     
     /// May throw a cancelled commit error, if a transaction observer cancels
@@ -567,13 +445,14 @@ extension Database {
             clearSchemaCache()
         }
         
-        try observationBroker.statementDidExecute(statement)
+        // Database observation: cleanup
+        try observationBroker?.statementDidExecute(statement)
     }
     
     /// Always throws an error
     @usableFromInline
-    func statementDidFail(_ statement: Statement, withResultCode resultCode: Int32) throws -> Never {
-        // Failed statements can not be reused, because sqlite3_reset won't
+    func statementDidFail(_ statement: Statement, withResultCode resultCode: CInt) throws -> Never {
+        // Failed statements can not be reused, because `sqlite3_reset` won't
         // be able to restore the statement to its initial state:
         // https://www.sqlite.org/c3ref/reset.html
         //
@@ -581,15 +460,25 @@ extension Database {
         internalStatementCache.remove(statement)
         publicStatementCache.remove(statement)
         
-        /// Exposes the user-provided cancelled commit error, if a transaction
-        /// observer has cancelled a transaction.
-        try observationBroker.statementDidFail(statement)
+        // Extract values that may be modified by the user in their
+        // `TransactionObserver.databaseDidRollback(_:)` implementation
+        // (see below).
+        let message = lastErrorMessage
+        let arguments = statement.arguments
         
+        // Database observation: cleanup.
+        //
+        // If the statement failure is due to a transaction observer that has
+        // cancelled a transaction, this calls `TransactionObserver.databaseDidRollback(_:)`,
+        // and throws the user-provided cancelled commit error.
+        try observationBroker?.statementDidFail(statement)
+        
+        // Throw statement failure
         throw DatabaseError(
             resultCode: resultCode,
-            message: lastErrorMessage,
+            message: message,
             sql: statement.sql,
-            arguments: statement.arguments,
+            arguments: arguments,
             publicStatementArguments: configuration.publicStatementArguments)
     }
 }
@@ -618,14 +507,12 @@ struct StatementCache {
         // However SQLITE_PREPARE_PERSISTENT was only introduced in
         // SQLite 3.20.0 http://www.sqlite.org/changes.html#version_3_20
         #if GRDBCUSTOMSQLITE || GRDBCIPHER
-        let statement = try db.makeStatement(sql: sql, prepFlags: SQLITE_PREPARE_PERSISTENT)
+        let statement = try db.makeStatement(sql: sql, prepFlags: CUnsignedInt(SQLITE_PREPARE_PERSISTENT))
         #else
         let statement: Statement
         if #available(iOS 12.0, OSX 10.14, watchOS 5.0, *) {
-            // SQLite 3.24.0 or more
-            statement = try db.makeStatement(sql: sql, prepFlags: SQLITE_PREPARE_PERSISTENT)
+            statement = try db.makeStatement(sql: sql, prepFlags: CUnsignedInt(SQLITE_PREPARE_PERSISTENT))
         } else {
-            // SQLite 3.19.3 or less
             statement = try db.makeStatement(sql: sql)
         }
         #endif

@@ -30,14 +30,14 @@ private class Citizenship : Record, Hashable {
         "citizenships"
     }
     
-    required init(row: Row) {
+    required init(row: Row) throws {
         personName = row["personName"]
         countryName = row["countryName"]
         native = row["native"]
-        super.init(row: row)
+        try super.init(row: row)
     }
     
-    override func encode(to container: inout PersistenceContainer) {
+    override func encode(to container: inout PersistenceContainer) throws {
         container["personName"] = personName
         container["countryName"] = countryName
         container["native"] = native
@@ -59,7 +59,7 @@ private class Citizenship : Record, Hashable {
 
 class RecordPrimaryKeyMultipleTests: GRDBTestCase {
     
-    override func setup(_ dbWriter: DatabaseWriter) throws {
+    override func setup(_ dbWriter: some DatabaseWriter) throws {
         var migrator = DatabaseMigrator()
         migrator.registerMigration("createCitizenship", migrate: Citizenship.setup)
         try migrator.migrate(dbWriter)
@@ -89,7 +89,7 @@ class RecordPrimaryKeyMultipleTests: GRDBTestCase {
             try record.insert(db)
             
             let row = try Row.fetchOne(db, sql: "SELECT * FROM citizenships WHERE personName = ? AND countryName = ?", arguments: [record.personName, record.countryName])!
-            assert(record, isEncodedIn: row)
+            try assert(record, isEncodedIn: row)
         }
     }
     
@@ -116,7 +116,7 @@ class RecordPrimaryKeyMultipleTests: GRDBTestCase {
             try record.insert(db)
             
             let row = try Row.fetchOne(db, sql: "SELECT * FROM citizenships WHERE personName = ? AND countryName = ?", arguments: [record.personName, record.countryName])!
-            assert(record, isEncodedIn: row)
+            try assert(record, isEncodedIn: row)
         }
     }
     
@@ -129,9 +129,9 @@ class RecordPrimaryKeyMultipleTests: GRDBTestCase {
             let record = Citizenship(personName: nil, countryName: nil, native: true)
             do {
                 try record.update(db)
-                XCTFail("Expected PersistenceError.recordNotFound")
-            } catch let PersistenceError.recordNotFound(databaseTableName: databaseTableName, key: key) {
-                // Expected PersistenceError.recordNotFound
+                XCTFail("Expected RecordError.recordNotFound")
+            } catch let RecordError.recordNotFound(databaseTableName: databaseTableName, key: key) {
+                // Expected RecordError.recordNotFound
                 XCTAssertEqual(databaseTableName, "citizenships")
                 XCTAssertEqual(key, ["countryName": .null, "personName": .null])
             }
@@ -144,9 +144,9 @@ class RecordPrimaryKeyMultipleTests: GRDBTestCase {
             let record = Citizenship(personName: "Arthur", countryName: "France", native: true)
             do {
                 try record.update(db)
-                XCTFail("Expected PersistenceError.recordNotFound")
-            } catch let PersistenceError.recordNotFound(databaseTableName: databaseTableName, key: key) {
-                // Expected PersistenceError.recordNotFound
+                XCTFail("Expected RecordError.recordNotFound")
+            } catch let RecordError.recordNotFound(databaseTableName: databaseTableName, key: key) {
+                // Expected RecordError.recordNotFound
                 XCTAssertEqual(databaseTableName, "citizenships")
                 XCTAssertEqual(key, ["countryName": "France".databaseValue, "personName": "Arthur".databaseValue])
             }
@@ -162,7 +162,7 @@ class RecordPrimaryKeyMultipleTests: GRDBTestCase {
             try record.update(db)
             
             let row = try Row.fetchOne(db, sql: "SELECT * FROM citizenships WHERE personName = ? AND countryName = ?", arguments: [record.personName, record.countryName])!
-            assert(record, isEncodedIn: row)
+            try assert(record, isEncodedIn: row)
         }
     }
     
@@ -174,9 +174,9 @@ class RecordPrimaryKeyMultipleTests: GRDBTestCase {
             try record.delete(db)
             do {
                 try record.update(db)
-                XCTFail("Expected PersistenceError.recordNotFound")
-            } catch let PersistenceError.recordNotFound(databaseTableName: databaseTableName, key: key) {
-                // Expected PersistenceError.recordNotFound
+                XCTFail("Expected RecordError.recordNotFound")
+            } catch let RecordError.recordNotFound(databaseTableName: databaseTableName, key: key) {
+                // Expected RecordError.recordNotFound
                 XCTAssertEqual(databaseTableName, "citizenships")
                 XCTAssertEqual(key, ["countryName": "France".databaseValue, "personName": "Arthur".databaseValue])
             }
@@ -207,7 +207,7 @@ class RecordPrimaryKeyMultipleTests: GRDBTestCase {
             try record.save(db)
             
             let row = try Row.fetchOne(db, sql: "SELECT * FROM citizenships WHERE personName = ? AND countryName = ?", arguments: [record.personName, record.countryName])!
-            assert(record, isEncodedIn: row)
+            try assert(record, isEncodedIn: row)
         }
     }
     
@@ -221,7 +221,7 @@ class RecordPrimaryKeyMultipleTests: GRDBTestCase {
             try record.save(db)   // Actual update
             
             let row = try Row.fetchOne(db, sql: "SELECT * FROM citizenships WHERE personName = ? AND countryName = ?", arguments: [record.personName, record.countryName])!
-            assert(record, isEncodedIn: row)
+            try assert(record, isEncodedIn: row)
         }
     }
     
@@ -234,7 +234,7 @@ class RecordPrimaryKeyMultipleTests: GRDBTestCase {
             try record.save(db)
             
             let row = try Row.fetchOne(db, sql: "SELECT * FROM citizenships WHERE personName = ? AND countryName = ?", arguments: [record.personName, record.countryName])!
-            assert(record, isEncodedIn: row)
+            try assert(record, isEncodedIn: row)
         }
     }
     
@@ -384,6 +384,20 @@ class RecordPrimaryKeyMultipleTests: GRDBTestCase {
         }
     }
     
+    func testFindWithKey() throws {
+        let dbQueue = try makeDatabaseQueue()
+        try dbQueue.inDatabase { db in
+            let record = Citizenship(personName: "Arthur", countryName: "France", native: true)
+            try record.insert(db)
+            
+            let fetchedRecord = try Citizenship.find(db, key: ["personName": record.personName, "countryName": record.countryName])
+            XCTAssertTrue(fetchedRecord.personName == record.personName)
+            XCTAssertTrue(fetchedRecord.countryName == record.countryName)
+            XCTAssertTrue(fetchedRecord.native == record.native)
+            XCTAssertEqual(lastSQLQuery, "SELECT * FROM \"citizenships\" WHERE (\"personName\" = '\(record.personName!)') AND (\"countryName\" = '\(record.countryName!)')")
+        }
+    }
+
     
     // MARK: - Fetch With Key Request
     

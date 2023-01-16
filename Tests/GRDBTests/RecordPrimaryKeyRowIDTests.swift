@@ -32,32 +32,31 @@ private class Person : Record, Hashable {
         "persons"
     }
     
-    required init(row: Row) {
+    required init(row: Row) throws {
         id = row["id"]
         age = row["age"]
         name = row["name"]
         creationDate = row["creationDate"]
-        super.init(row: row)
+        try super.init(row: row)
     }
     
-    override func encode(to container: inout PersistenceContainer) {
+    override func encode(to container: inout PersistenceContainer) throws {
         container["id"] = id
         container["name"] = name
         container["age"] = age
         container["creationDate"] = creationDate
     }
     
-    override func insert(_ db: Database) throws {
-        // This is implicitly tested with the NOT NULL constraint on creationDate
+    override func willInsert(_ db: Database) throws {
         if creationDate == nil {
             creationDate = Date()
         }
-        
-        try super.insert(db)
+        try super.willInsert(db)
     }
     
-    override func didInsert(with rowID: Int64, for column: String?) {
-        self.id = rowID
+    override func didInsert(_ inserted: InsertionSuccess) {
+        super.didInsert(inserted)
+        id = inserted.rowID
     }
     
     static func == (lhs: Person, rhs: Person) -> Bool {
@@ -77,7 +76,7 @@ private class Person : Record, Hashable {
 
 class RecordPrimaryKeyRowIDTests: GRDBTestCase {
     
-    override func setup(_ dbWriter: DatabaseWriter) throws {
+    override func setup(_ dbWriter: some DatabaseWriter) throws {
         var migrator = DatabaseMigrator()
         migrator.registerMigration("createPerson", migrate: Person.setup)
         try migrator.migrate(dbWriter)
@@ -95,7 +94,7 @@ class RecordPrimaryKeyRowIDTests: GRDBTestCase {
             XCTAssertTrue(record.id != nil)
             
             let row = try Row.fetchOne(db, sql: "SELECT * FROM persons WHERE id = ?", arguments: [record.id])!
-            assert(record, isEncodedIn: row)
+            try assert(record, isEncodedIn: row)
         }
     }
     
@@ -108,7 +107,7 @@ class RecordPrimaryKeyRowIDTests: GRDBTestCase {
             XCTAssertTrue(record.id != nil)
             
             let row = try Row.fetchOne(db, sql: "SELECT * FROM persons WHERE id = ?", arguments: [record.id])!
-            assert(record, isEncodedIn: row)
+            try assert(record, isEncodedIn: row)
             return .rollback
         }
         // This is debatable, actually.
@@ -122,7 +121,7 @@ class RecordPrimaryKeyRowIDTests: GRDBTestCase {
             try record.insert(db)
             
             let row = try Row.fetchOne(db, sql: "SELECT * FROM persons WHERE id = ?", arguments: [record.id])!
-            assert(record, isEncodedIn: row)
+            try assert(record, isEncodedIn: row)
         }
     }
     
@@ -160,7 +159,7 @@ class RecordPrimaryKeyRowIDTests: GRDBTestCase {
             try record.insert(db)
             
             let row = try Row.fetchOne(db, sql: "SELECT * FROM persons WHERE id = ?", arguments: [record.id])!
-            assert(record, isEncodedIn: row)
+            try assert(record, isEncodedIn: row)
         }
     }
     
@@ -173,9 +172,9 @@ class RecordPrimaryKeyRowIDTests: GRDBTestCase {
             let record = Person(id: nil, name: "Arthur")
             do {
                 try record.update(db)
-                XCTFail("Expected PersistenceError.recordNotFound")
-            } catch let PersistenceError.recordNotFound(databaseTableName: databaseTableName, key: key) {
-                // Expected PersistenceError.recordNotFound
+                XCTFail("Expected RecordError.recordNotFound")
+            } catch let RecordError.recordNotFound(databaseTableName: databaseTableName, key: key) {
+                // Expected RecordError.recordNotFound
                 XCTAssertEqual(databaseTableName, "persons")
                 XCTAssertEqual(key, ["id": .null])
             }
@@ -188,9 +187,9 @@ class RecordPrimaryKeyRowIDTests: GRDBTestCase {
             let record = Person(id: 123456, name: "Arthur")
             do {
                 try record.update(db)
-                XCTFail("Expected PersistenceError.recordNotFound")
-            } catch let PersistenceError.recordNotFound(databaseTableName: databaseTableName, key: key) {
-                // Expected PersistenceError.recordNotFound
+                XCTFail("Expected RecordError.recordNotFound")
+            } catch let RecordError.recordNotFound(databaseTableName: databaseTableName, key: key) {
+                // Expected RecordError.recordNotFound
                 XCTAssertEqual(databaseTableName, "persons")
                 XCTAssertEqual(key, ["id": record.id.databaseValue])
             }
@@ -206,7 +205,7 @@ class RecordPrimaryKeyRowIDTests: GRDBTestCase {
             try record.update(db)
             
             let row = try Row.fetchOne(db, sql: "SELECT * FROM persons WHERE id = ?", arguments: [record.id])!
-            assert(record, isEncodedIn: row)
+            try assert(record, isEncodedIn: row)
         }
     }
     
@@ -218,9 +217,9 @@ class RecordPrimaryKeyRowIDTests: GRDBTestCase {
             try record.delete(db)
             do {
                 try record.update(db)
-                XCTFail("Expected PersistenceError.recordNotFound")
-            } catch let PersistenceError.recordNotFound(databaseTableName: databaseTableName, key: key) {
-                // Expected PersistenceError.recordNotFound
+                XCTFail("Expected RecordError.recordNotFound")
+            } catch let RecordError.recordNotFound(databaseTableName: databaseTableName, key: key) {
+                // Expected RecordError.recordNotFound
                 XCTAssertEqual(databaseTableName, "persons")
                 XCTAssertEqual(key, ["id": record.id.databaseValue])
             }
@@ -239,7 +238,7 @@ class RecordPrimaryKeyRowIDTests: GRDBTestCase {
             XCTAssertTrue(record.id != nil)
             
             let row = try Row.fetchOne(db, sql: "SELECT * FROM persons WHERE id = ?", arguments: [record.id])!
-            assert(record, isEncodedIn: row)
+            try assert(record, isEncodedIn: row)
         }
     }
     
@@ -250,7 +249,7 @@ class RecordPrimaryKeyRowIDTests: GRDBTestCase {
             try record.save(db)
             
             let row = try Row.fetchOne(db, sql: "SELECT * FROM persons WHERE id = ?", arguments: [record.id])!
-            assert(record, isEncodedIn: row)
+            try assert(record, isEncodedIn: row)
         }
     }
     
@@ -264,7 +263,7 @@ class RecordPrimaryKeyRowIDTests: GRDBTestCase {
             try record.save(db)   // Actual update
             
             let row = try Row.fetchOne(db, sql: "SELECT * FROM persons WHERE id = ?", arguments: [record.id])!
-            assert(record, isEncodedIn: row)
+            try assert(record, isEncodedIn: row)
         }
     }
     
@@ -277,7 +276,7 @@ class RecordPrimaryKeyRowIDTests: GRDBTestCase {
             try record.save(db)
             
             let row = try Row.fetchOne(db, sql: "SELECT * FROM persons WHERE id = ?", arguments: [record.id])!
-            assert(record, isEncodedIn: row)
+            try assert(record, isEncodedIn: row)
         }
     }
     
@@ -428,6 +427,21 @@ class RecordPrimaryKeyRowIDTests: GRDBTestCase {
         }
     }
     
+    func testFindWithKey() throws {
+        let dbQueue = try makeDatabaseQueue()
+        try dbQueue.inDatabase { db in
+            let record = Person(name: "Arthur")
+            try record.insert(db)
+            
+            let fetchedRecord = try Person.find(db, key: ["id": record.id])
+            XCTAssertTrue(fetchedRecord.id == record.id)
+            XCTAssertTrue(fetchedRecord.name == record.name)
+            XCTAssertTrue(fetchedRecord.age == record.age)
+            XCTAssertTrue(abs(fetchedRecord.creationDate.timeIntervalSince(record.creationDate)) < 1e-3)    // ISO-8601 is precise to the millisecond.
+            XCTAssertEqual(lastSQLQuery, "SELECT * FROM \"persons\" WHERE \"id\" = \(record.id!)")
+        }
+    }
+
     
     // MARK: - Fetch With Key Request
     
@@ -636,6 +650,29 @@ class RecordPrimaryKeyRowIDTests: GRDBTestCase {
         }
     }
     
+    func testFindWithPrimaryKey() throws {
+        let dbQueue = try makeDatabaseQueue()
+        try dbQueue.inDatabase { db in
+            let record = Person(name: "Arthur")
+            try record.insert(db)
+            
+            do {
+                let id: Int64? = nil
+                _ = try Person.find(db, key: id)
+                XCTFail("Expected RecordError")
+            } catch RecordError.recordNotFound(databaseTableName: "persons", key: ["id": .null]) { }
+
+            do {
+                let fetchedRecord = try Person.find(db, key: record.id)
+                XCTAssertTrue(fetchedRecord.id == record.id)
+                XCTAssertTrue(fetchedRecord.name == record.name)
+                XCTAssertTrue(fetchedRecord.age == record.age)
+                XCTAssertTrue(abs(fetchedRecord.creationDate.timeIntervalSince(record.creationDate)) < 1e-3)    // ISO-8601 is precise to the millisecond.
+                XCTAssertEqual(lastSQLQuery, "SELECT * FROM \"persons\" WHERE \"id\" = \(record.id!)")
+            }
+        }
+    }
+
     
     // MARK: - Fetch With Primary Key Request
     

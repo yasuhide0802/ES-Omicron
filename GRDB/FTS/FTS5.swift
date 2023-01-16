@@ -76,14 +76,6 @@ public struct FTS5: VirtualTableModule {
     /// The virtual table module name
     public let moduleName = "fts5"
     
-    // TODO: remove when `makeTableDefinition()` is no longer a requirement
-    /// Reserved; part of the VirtualTableModule protocol.
-    ///
-    /// See Database.create(virtualTable:using:)
-    public func makeTableDefinition() -> FTS5TableDefinition {
-        preconditionFailure()
-    }
-    
     /// Reserved; part of the VirtualTableModule protocol.
     ///
     /// See Database.create(virtualTable:using:)
@@ -111,6 +103,9 @@ public struct FTS5: VirtualTableModule {
         if let tokenizer = definition.tokenizer {
             let tokenizerSQL = try tokenizer
                 .components
+                .map { component in
+                    try component.sqlExpression.quotedSQL(db)
+                }
                 .joined(separator: " ")
                 .sqlExpression
                 .quotedSQL(db)
@@ -249,9 +244,9 @@ public struct FTS5: VirtualTableModule {
     private static func api_v2(
         _ db: Database,
         // swiftlint:disable:next line_length
-        _ sqlite3_prepare_v3: @convention(c) (OpaquePointer?, UnsafePointer<Int8>?, Int32, UInt32, UnsafeMutablePointer<OpaquePointer?>?, UnsafeMutablePointer<UnsafePointer<Int8>?>?) -> Int32,
+        _ sqlite3_prepare_v3: @convention(c) (OpaquePointer?, UnsafePointer<Int8>?, CInt, CUnsignedInt, UnsafeMutablePointer<OpaquePointer?>?, UnsafeMutablePointer<UnsafePointer<Int8>?>?) -> CInt,
         // swiftlint:disable:next line_length
-        _ sqlite3_bind_pointer: @convention(c) (OpaquePointer?, Int32, UnsafeMutableRawPointer?, UnsafePointer<Int8>?, (@convention(c) (UnsafeMutableRawPointer?) -> Void)?) -> Int32)
+        _ sqlite3_bind_pointer: @convention(c) (OpaquePointer?, CInt, UnsafeMutableRawPointer?, UnsafePointer<Int8>?, (@convention(c) (UnsafeMutableRawPointer?) -> Void)?) -> CInt)
     -> UnsafePointer<fts5_api>
     {
         var statement: SQLiteStatement? = nil
@@ -267,10 +262,10 @@ public struct FTS5: VirtualTableModule {
             _ = sqlite3_bind_pointer(statement, 1, &api, typePointer, nil)
         }
         sqlite3_step(statement)
-        guard let result = api else {
+        guard let api else {
             fatalError("FTS5 is not available")
         }
-        return result
+        return api
     }
 }
 
@@ -449,7 +444,7 @@ extension Column {
 }
 
 extension Database {
-    /// Deletes the synchronization triggers for a synchronized FTS5 table
+    /// Deletes the synchronization triggers for a synchronized FTS5 table.
     public func dropFTS5SynchronizationTriggers(forTable tableName: String) throws {
         try execute(sql: """
             DROP TRIGGER IF EXISTS \("__\(tableName)_ai".quotedDatabaseIdentifier);

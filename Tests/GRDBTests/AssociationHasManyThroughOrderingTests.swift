@@ -29,14 +29,14 @@ private struct TeamInfo: Decodable, FetchableRecord, Equatable {
 /// A usage test for ordered hasManyThrough association
 class AssociationHasManyThroughOrderingTests: GRDBTestCase {
     
-    override func setup(_ dbWriter: DatabaseWriter) throws {
+    override func setup(_ dbWriter: some DatabaseWriter) throws {
         try dbWriter.write { db in
             try db.create(table: "team") { t in
-                t.column("id", .integer).primaryKey()
+                t.primaryKey("id", .integer)
                 t.column("name", .text).notNull()
             }
             try db.create(table: "player") { t in
-                t.column("id", .integer).primaryKey()
+                t.primaryKey("id", .integer)
                 t.column("name", .text).notNull()
             }
             try db.create(table: "playerRole") { t in

@@ -1,7 +1,7 @@
 //: To run this playground:
 //:
 //: - Open GRDB.xcworkspace
-//: - Select the GRDBOSX scheme: menu Product > Scheme > GRDBOSX
+//: - Select the GRDB scheme: menu Product > Scheme > GRDB
 //: - Build: menu Product > Build
 //: - Select the playground in the Playgrounds Group
 //: - Run the playground
@@ -14,7 +14,7 @@ var configuration = Configuration()
 configuration.prepareDatabase { db in
     db.trace { print("SQL> \($0)") }
 }
-let dbQueue = DatabaseQueue(configuration: configuration)
+let dbQueue = try DatabaseQueue(configuration: configuration)
 
 //: Use a migrator to define the database schema
 
@@ -44,8 +44,8 @@ struct Author: Codable, FetchableRecord, MutablePersistableRecord {
     var id: Int64?
     var name: String
     
-    mutating func didInsert(with rowID: Int64, for column: String?) {
-        id = rowID
+    mutating func didInsert(_ inserted: InsertionSuccess) {
+        id = inserted.rowID
     }
 }
 
@@ -54,8 +54,8 @@ struct Book: Codable, FetchableRecord, MutablePersistableRecord {
     var authorId: Int64
     var title: String
     
-    mutating func didInsert(with rowID: Int64, for column: String?) {
-        id = rowID
+    mutating func didInsert(_ inserted: InsertionSuccess) {
+        id = inserted.rowID
     }
 }
 

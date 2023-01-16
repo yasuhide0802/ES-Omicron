@@ -12,7 +12,7 @@ class DatabaseConfigurationTests: GRDBTestCase {
             connectionCount += 1
         }
         
-        _ = DatabaseQueue(configuration: configuration)
+        _ = try DatabaseQueue(configuration: configuration)
         XCTAssertEqual(connectionCount, 1)
         
         _ = try makeDatabaseQueue(configuration: configuration)
@@ -26,6 +26,11 @@ class DatabaseConfigurationTests: GRDBTestCase {
         
         try pool.makeSnapshot().read { _ in }
         XCTAssertEqual(connectionCount, 5)
+        
+#if SQLITE_ENABLE_SNAPSHOT || (!GRDBCUSTOMSQLITE && !GRDBCIPHER && (compiler(>=5.7.1) || !(os(macOS) || targetEnvironment(macCatalyst))))
+        try pool.makeSnapshotPool().read { _ in }
+        XCTAssertEqual(connectionCount, 6)
+#endif
     }
     
     func testPrepareDatabaseError() throws {
@@ -68,6 +73,14 @@ class DatabaseConfigurationTests: GRDBTestCase {
                 _ = try pool.makeSnapshot()
                 XCTFail("Expected TestError")
             } catch is TestError { }
+            
+#if SQLITE_ENABLE_SNAPSHOT || (!GRDBCUSTOMSQLITE && !GRDBCIPHER && (compiler(>=5.7.1) || !(os(macOS) || targetEnvironment(macCatalyst))))
+            do {
+                error = TestError()
+                _ = try pool.makeSnapshotPool()
+                XCTFail("Expected TestError")
+            } catch is TestError { }
+#endif
         }
     }
     
@@ -96,10 +109,8 @@ class DatabaseConfigurationTests: GRDBTestCase {
         XCTAssertEqual(foo, "foo")
         
         // Test SQLITE_DBCONFIG_DQS_DDL
-        if sqlite3_libversion_number() > 3008010 {
-            try dbQueue.inDatabase { db in
-                try db.execute(sql: "CREATE INDEX i ON player(\"foo\")")
-            }
+        try dbQueue.inDatabase { db in
+            try db.execute(sql: "CREATE INDEX i ON player(\"foo\")")
         }
     }
     

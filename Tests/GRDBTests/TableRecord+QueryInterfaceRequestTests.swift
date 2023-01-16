@@ -14,7 +14,7 @@ private struct Reader : TableRecord {
 
 class TableRecordQueryInterfaceRequestTests: GRDBTestCase {
     
-    override func setup(_ dbWriter: DatabaseWriter) throws {
+    override func setup(_ dbWriter: some DatabaseWriter) throws {
         var migrator = DatabaseMigrator()
         migrator.registerMigration("createReaders") { db in
             try db.execute(sql: """
@@ -328,7 +328,7 @@ class TableRecordQueryInterfaceRequestTests: GRDBTestCase {
         try dbQueue.inTransaction { db in
             struct Player: TableRecord { }
             try db.create(table: "player") { t in
-                t.column("a", .integer).notNull().primaryKey()
+                t.primaryKey("a", .integer)
             }
             
             try XCTAssertFalse(Player.exists(db, key: 1))
@@ -343,7 +343,7 @@ class TableRecordQueryInterfaceRequestTests: GRDBTestCase {
         try dbQueue.inTransaction { db in
             struct Player: TableRecord { }
             try db.create(table: "player") { t in
-                t.column("id", .text).notNull().primaryKey()
+                t.primaryKey("id", .text)
             }
             
             try XCTAssertFalse(Player.exists(db, key: "foo"))
@@ -386,6 +386,10 @@ class TableRecordQueryInterfaceRequestTests: GRDBTestCase {
             try XCTAssertFalse(Player.exists(db, id: 1))
             XCTAssertEqual(lastSQLQuery, "SELECT EXISTS (SELECT * FROM \"player\" WHERE \"id\" = 1)")
             
+            sqlQueries.removeAll()
+            try XCTAssertFalse(Player.exists(db, id: nil))
+            XCTAssertNil(lastSQLQuery) // Database not hit
+            
             return .rollback
         }
         try dbQueue.inTransaction { db in
@@ -393,7 +397,7 @@ class TableRecordQueryInterfaceRequestTests: GRDBTestCase {
                 var id: String
             }
             try db.create(table: "player") { t in
-                t.column("id", .text).notNull().primaryKey()
+                t.primaryKey("id", .text)
             }
             
             try XCTAssertFalse(Player.exists(db, id: "foo"))

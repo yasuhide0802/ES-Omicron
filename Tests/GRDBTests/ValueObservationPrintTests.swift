@@ -28,7 +28,7 @@ class ValueObservationPrintTests: GRDBTestCase {
             try db.execute(sql: "CREATE TABLE player(id INTEGER PRIMARY KEY)")
         }
         
-        func test(_ dbReader: DatabaseReader) throws {
+        func test(_ dbReader: some DatabaseReader) throws {
             let logger = TestStream()
             let observation = ValueObservation
                 .trackingConstantRegion { try Int.fetchOne($0, sql: "SELECT MAX(id) FROM player") }
@@ -54,6 +54,9 @@ class ValueObservationPrintTests: GRDBTestCase {
         try test(makeDatabaseQueue(filename: "test", configuration: config))
         try test(makeDatabasePool(filename: "test", configuration: config))
         try test(makeDatabasePool(filename: "test", configuration: config).makeSnapshot())
+#if SQLITE_ENABLE_SNAPSHOT || (!GRDBCUSTOMSQLITE && !GRDBCIPHER && (compiler(>=5.7.1) || !(os(macOS) || targetEnvironment(macCatalyst))))
+        try test(makeDatabasePool(filename: "test", configuration: config).makeSnapshotPool())
+#endif
     }
     
     func test_readonly_success_immediateScheduling() throws {
@@ -62,7 +65,7 @@ class ValueObservationPrintTests: GRDBTestCase {
             try db.execute(sql: "CREATE TABLE player(id INTEGER PRIMARY KEY)")
         }
         
-        func test(_ dbReader: DatabaseReader) throws {
+        func test(_ dbReader: some DatabaseReader) throws {
             let logger = TestStream()
             let observation = ValueObservation
                 .trackingConstantRegion { try Int.fetchOne($0, sql: "SELECT MAX(id) FROM player") }
@@ -88,13 +91,19 @@ class ValueObservationPrintTests: GRDBTestCase {
         try test(makeDatabaseQueue(filename: "test", configuration: config))
         try test(makeDatabasePool(filename: "test", configuration: config))
         try test(makeDatabasePool(filename: "test", configuration: config).makeSnapshot())
+#if SQLITE_ENABLE_SNAPSHOT || (!GRDBCUSTOMSQLITE && !GRDBCIPHER && (compiler(>=5.7.1) || !(os(macOS) || targetEnvironment(macCatalyst))))
+        try test(makeDatabasePool(filename: "test", configuration: config).makeSnapshotPool())
+#endif
     }
     
     func test_readonly_failure_asynchronousScheduling() throws {
-        _ = try makeDatabasePool(filename: "test")
+        struct TestError: Error { }
+        let dbPool = try makeDatabasePool(filename: "test")
+        // workaround Xcode 14.1 compiler (???) bug: database is not in the WAL
+        // mode unless the pool is used.
+        try dbPool.write { _ in }
         
-        func test(_ dbReader: DatabaseReader) throws {
-            struct TestError: Error { }
+        func test(_ dbReader: some DatabaseReader) throws {
             let logger = TestStream()
             let observation = ValueObservation
                 .trackingConstantRegion { _ in throw TestError() }
@@ -120,13 +129,19 @@ class ValueObservationPrintTests: GRDBTestCase {
         try test(makeDatabaseQueue(filename: "test", configuration: config))
         try test(makeDatabasePool(filename: "test", configuration: config))
         try test(makeDatabasePool(filename: "test", configuration: config).makeSnapshot())
+#if SQLITE_ENABLE_SNAPSHOT || (!GRDBCUSTOMSQLITE && !GRDBCIPHER && (compiler(>=5.7.1) || !(os(macOS) || targetEnvironment(macCatalyst))))
+        try test(makeDatabasePool(filename: "test", configuration: config).makeSnapshotPool())
+#endif
     }
     
     func test_readonly_failure_immediateScheduling() throws {
-        _ = try makeDatabasePool(filename: "test")
+        struct TestError: Error { }
+        let dbPool = try makeDatabasePool(filename: "test")
+        // workaround Xcode 14.1 compiler (???) bug: database is not in the WAL
+        // mode unless the pool is used.
+        try dbPool.write { _ in }
         
-        func test(_ dbReader: DatabaseReader) throws {
-            struct TestError: Error { }
+        func test(_ dbReader: some DatabaseReader) throws {
             let logger = TestStream()
             let observation = ValueObservation
                 .trackingConstantRegion { _ in throw TestError() }
@@ -152,12 +167,15 @@ class ValueObservationPrintTests: GRDBTestCase {
         try test(makeDatabaseQueue(filename: "test", configuration: config))
         try test(makeDatabasePool(filename: "test", configuration: config))
         try test(makeDatabasePool(filename: "test", configuration: config).makeSnapshot())
+#if SQLITE_ENABLE_SNAPSHOT || (!GRDBCUSTOMSQLITE && !GRDBCIPHER && (compiler(>=5.7.1) || !(os(macOS) || targetEnvironment(macCatalyst))))
+        try test(makeDatabasePool(filename: "test", configuration: config).makeSnapshotPool())
+#endif
     }
     
     // MARK: - Writeonly
     
     func test_writeonly_success_asynchronousScheduling() throws {
-        func test(_ dbWriter: DatabaseWriter) throws {
+        func test(_ dbWriter: some DatabaseWriter) throws {
             try dbWriter.write { db in
                 try db.execute(sql: "CREATE TABLE player(id INTEGER PRIMARY KEY)")
             }
@@ -199,7 +217,7 @@ class ValueObservationPrintTests: GRDBTestCase {
     }
     
     func test_writeonly_success_immediateScheduling() throws {
-        func test(_ dbWriter: DatabaseWriter) throws {
+        func test(_ dbWriter: some DatabaseWriter) throws {
             try dbWriter.write { db in
                 try db.execute(sql: "CREATE TABLE player(id INTEGER PRIMARY KEY)")
             }
@@ -241,7 +259,7 @@ class ValueObservationPrintTests: GRDBTestCase {
     }
     
     func test_writeonly_immediateFailure_asynchronousScheduling() throws {
-        func test(_ dbWriter: DatabaseWriter) throws {
+        func test(_ dbWriter: some DatabaseWriter) throws {
             let logger = TestStream()
             var observation = ValueObservation
                 .trackingConstantRegion { try Int.fetchOne($0, sql: "SELECT MAX(id) FROM player") }
@@ -268,7 +286,7 @@ class ValueObservationPrintTests: GRDBTestCase {
     }
     
     func test_writeonly_immediateFailure_immediateScheduling() throws {
-        func test(_ dbWriter: DatabaseWriter) throws {
+        func test(_ dbWriter: some DatabaseWriter) throws {
             let logger = TestStream()
             var observation = ValueObservation
                 .trackingConstantRegion { try Int.fetchOne($0, sql: "SELECT MAX(id) FROM player") }
@@ -295,7 +313,7 @@ class ValueObservationPrintTests: GRDBTestCase {
     }
     
     func test_writeonly_lateFailure_asynchronousScheduling() throws {
-        func test(_ dbWriter: DatabaseWriter) throws {
+        func test(_ dbWriter: some DatabaseWriter) throws {
             try dbWriter.write { db in
                 try db.execute(sql: "CREATE TABLE player(id INTEGER PRIMARY KEY)")
             }
@@ -338,7 +356,7 @@ class ValueObservationPrintTests: GRDBTestCase {
     }
     
     func test_writeonly_lateFailure_immediateScheduling() throws {
-        func test(_ dbWriter: DatabaseWriter) throws {
+        func test(_ dbWriter: some DatabaseWriter) throws {
             try dbWriter.write { db in
                 try db.execute(sql: "CREATE TABLE player(id INTEGER PRIMARY KEY)")
             }

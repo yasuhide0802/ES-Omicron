@@ -107,15 +107,23 @@ struct SQLRelation {
         var condition: SQLAssociationCondition
         var relation: SQLRelation
         
-        /// Returns true iff this child can change the parent count.
+        /// Returns whether this child can change the parent count.
         ///
         /// Record.including(required: association) // true
         /// Record.including(all: association)      // false
         var impactsParentCount: Bool {
             switch kind {
-            case .oneOptional, .oneRequired:
+            case .oneRequired:
+                // INNER JOIN can clearly reduce the number of rows
+                return true
+            case .oneOptional:
+                // LEFT JOIN does not itself reduce the number of rows, but
+                // maybe the joined table is used somewhere in the relation, in
+                // a way that can reduce the number of rows.
                 return true
             case .all, .bridge:
+                // HasMany associations are prefetched in another SQL request:
+                // they have no impact on this relation.
                 return false
             }
         }
@@ -189,7 +197,7 @@ extension SQLRelation {
 }
 
 extension SQLRelation: Refinable {
-    func select(_ selection: @escaping (Database) throws -> [SQLSelection]) -> Self {
+    func selectWhenConnected(_ selection: @escaping (Database) throws -> [SQLSelection]) -> Self {
         with {
             $0.selectionPromise = DatabasePromise(selection)
         }
@@ -197,12 +205,12 @@ extension SQLRelation: Refinable {
     
     // Convenience
     func select(_ selection: [SQLSelection]) -> Self {
-        select { _ in selection }
+        selectWhenConnected { _ in selection }
     }
     
     // Convenience
     func select(_ expressions: SQLExpression...) -> Self {
-        select { _ in expressions.map { .expression($0) } }
+        select(expressions.map { .expression($0) })
     }
     
     /// Sets the selection, removes all selections from children, and clears the
@@ -220,7 +228,7 @@ extension SQLRelation: Refinable {
             }
     }
     
-    func annotated(with selection: @escaping (Database) throws -> [SQLSelection]) -> Self {
+    func annotatedWhenConnected(with selection: @escaping (Database) throws -> [SQLSelection]) -> Self {
         with {
             let old = $0.selectionPromise
             $0.selectionPromise = DatabasePromise { db in
@@ -231,10 +239,10 @@ extension SQLRelation: Refinable {
     
     // Convenience
     func annotated(with selection: [SQLSelection]) -> Self {
-        annotated(with: { _ in selection })
+        annotatedWhenConnected(with: { _ in selection })
     }
     
-    func filter(_ predicate: @escaping (Database) throws -> SQLExpression) -> Self {
+    func filterWhenConnected(_ predicate: @escaping (Database) throws -> SQLExpression) -> Self {
         with {
             if let old = $0.filterPromise {
                 $0.filterPromise = DatabasePromise { db in
@@ -248,10 +256,10 @@ extension SQLRelation: Refinable {
     
     // Convenience
     func filter(_ predicate: SQLExpression) -> Self {
-        filter { _ in predicate }
+        filterWhenConnected { _ in predicate }
     }
     
-    func order(_ orderings: @escaping (Database) throws -> [SQLOrdering]) -> Self {
+    func orderWhenConnected(_ orderings: @escaping (Database) throws -> [SQLOrdering]) -> Self {
         with {
             $0.ordering = SQLRelation.Ordering(orderings: orderings)
         }
@@ -283,13 +291,13 @@ extension SQLRelation: Refinable {
         }
     }
     
-    func group(_ expressions: @escaping (Database) throws -> [SQLExpression]) -> Self {
+    func groupWhenConnected(_ expressions: @escaping (Database) throws -> [SQLExpression]) -> Self {
         with {
             $0.groupPromise = DatabasePromise(expressions)
         }
     }
     
-    func having(_ predicate: @escaping (Database) throws -> SQLExpression) -> Self {
+    func havingWhenConnected(_ predicate: @escaping (Database) throws -> SQLExpression) -> Self {
         with {
             if let old = $0.havingExpressionPromise {
                 $0.havingExpressionPromise = DatabasePromise { db in
@@ -893,7 +901,7 @@ extension JoinMapping {
             fatalError("Provide at least one left row, or this method can't generate SQL that can be observed.")
         }
         
-        let mappings: [(leftIndex: Rows.Element.ColumnIndex, rightColumn: Column)] = map { mapping in
+        let mappings = map { mapping in
             guard let leftIndex = firstLeftRow.index(forColumn: mapping.left) else {
                 fatalError("Missing column: \(mapping.left)")
             }

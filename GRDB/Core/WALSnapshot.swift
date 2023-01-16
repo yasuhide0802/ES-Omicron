@@ -19,49 +19,44 @@
 /// Yes, this is an awfully complex logic.
 ///
 /// See <https://www.sqlite.org/c3ref/snapshot.html>.
-final class WALSnapshot {
-#if GRDBCIPHER || (GRDBCUSTOMSQLITE && !SQLITE_ENABLE_SNAPSHOT) || compiler(<5.7)
-    init?(_ db: Database) {
-        return nil
-    }
+final class WALSnapshot: Sendable {
+    // Xcode 14 (Swift 5.7) ships with a macOS SDK that misses snapshot support.
+    // Xcode 14.1 (Swift 5.7.1) ships with a macOS SDK that has snapshot support.
+    // This is the meaning of (compiler(>=5.7.1) || !(os(macOS) || targetEnvironment(macCatalyst)))
+    // swiftlint:disable:next line_length
+#if SQLITE_ENABLE_SNAPSHOT || (!GRDBCUSTOMSQLITE && !GRDBCIPHER && (compiler(>=5.7.1) || !(os(macOS) || targetEnvironment(macCatalyst))))
+    static let available = true
     
-    func compare(_ other: WALSnapshot) -> CInt {
-        preconditionFailure("snapshots are not available")
-    }
-#else
-    private let snapshot: UnsafeMutablePointer<sqlite3_snapshot>?
+    let sqliteSnapshot: UnsafeMutablePointer<sqlite3_snapshot>
     
-    /// Returns nil if `SQLITE_ENABLE_SNAPSHOT` is not enabled, or if an
-    /// error occurs.
-    init?(_ db: Database) {
-        var snapshot: UnsafeMutablePointer<sqlite3_snapshot>?
-        let code: CInt = withUnsafeMutablePointer(to: &snapshot) {
-#if GRDBCUSTOMSQLITE
+    init(_ db: Database) throws {
+        var sqliteSnapshot: UnsafeMutablePointer<sqlite3_snapshot>?
+        let code = withUnsafeMutablePointer(to: &sqliteSnapshot) {
             return sqlite3_snapshot_get(db.sqliteConnection, "main", $0)
-#else
-            // iOS 10.0 is always true because our minimum requirement is iOS 11.
-            if #available(macOS 10.12, watchOS 3.0, tvOS 10.0, *) {
-                return sqlite3_snapshot_get(db.sqliteConnection, "main", $0)
-            } else {
-                return SQLITE_ERROR
+        }
+        guard code == SQLITE_OK else {
+            if sqlite3_get_autocommit(db.sqliteConnection) != 0 {
+                throw DatabaseError(resultCode: code, message: """
+                    Can't create snapshot because database is in autocommit mode.
+                    """)
             }
-#endif
+            if let journalMode = try? String.fetchOne(db, sql: "PRAGMA journal_mode"),
+               journalMode != "wal"
+            {
+                throw DatabaseError(resultCode: code, message: """
+                    Can't create snapshot because database is not in WAL mode.
+                    """)
+            }
+            throw DatabaseError(resultCode: code)
         }
-        guard code == SQLITE_OK, let s = snapshot else {
-            return nil
+        guard let sqliteSnapshot else {
+            throw DatabaseError(resultCode: .SQLITE_INTERNAL) // WTF SQLite?
         }
-        self.snapshot = s
+        self.sqliteSnapshot = sqliteSnapshot
     }
     
     deinit {
-#if GRDBCUSTOMSQLITE
-        sqlite3_snapshot_free(snapshot)
-#else
-        // iOS 10.0 is always true because our minimum requirement is iOS 11.
-        if #available(macOS 10.12, watchOS 3.0, tvOS 10.0, *) {
-            sqlite3_snapshot_free(snapshot)
-        }
-#endif
+        sqlite3_snapshot_free(sqliteSnapshot)
     }
     
     /// Compares two WAL snapshots.
@@ -70,16 +65,17 @@ final class WALSnapshot {
     ///
     /// See <https://www.sqlite.org/c3ref/snapshot_cmp.html>.
     func compare(_ other: WALSnapshot) -> CInt {
-#if GRDBCUSTOMSQLITE
-        return sqlite3_snapshot_cmp(snapshot, other.snapshot)
-#else
-        // iOS 10.0 is always true because our minimum requirement is iOS 11.
-        if #available(macOS 10.12, watchOS 3.0, tvOS 10.0, *) {
-            return sqlite3_snapshot_cmp(snapshot, other.snapshot)
-        } else {
-            preconditionFailure("snapshots are not available")
-        }
-#endif
+        return sqlite3_snapshot_cmp(sqliteSnapshot, other.sqliteSnapshot)
     }
-#endif // GRDBCIPHER || (GRDBCUSTOMSQLITE && !SQLITE_ENABLE_SNAPSHOT) || compiler(<5.7)
+#else
+    static let available = false
+
+    init(_ db: Database) throws {
+        throw DatabaseError(resultCode: .SQLITE_MISUSE, message: "snapshots are not available")
+    }
+
+    func compare(_ other: WALSnapshot) -> CInt {
+        preconditionFailure("snapshots are not available")
+    }
+#endif
 }

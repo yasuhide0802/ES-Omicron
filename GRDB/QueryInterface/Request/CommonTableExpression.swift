@@ -10,7 +10,9 @@ public struct CommonTableExpression<RowDecoder> {
     ///         named: "answer",
     ///         sql: "SELECT 42")
     ///     answer.tableName // "answer"
-    public var tableName: String
+    public var tableName: String {
+        cte.tableName
+    }
     
     var cte: SQLCTE
     
@@ -36,15 +38,15 @@ public struct CommonTableExpression<RowDecoder> {
     /// - parameter columns: The columns of the common table expression. If nil,
     ///   the columns are the columns of the request.
     /// - parameter request: A request.
-    private init<Request: SQLSubqueryable>(
+    private init(
         recursive: Bool = false,
         named tableName: String,
         columns: [String]? = nil,
-        request: Request,
+        request: some SQLSubqueryable,
         type: RowDecoder.Type)
     {
-        self.tableName = tableName
         self.cte = SQLCTE(
+            tableName: tableName,
             columns: columns,
             sqlSubquery: request.sqlSubquery,
             isRecursive: recursive)
@@ -72,11 +74,11 @@ extension CommonTableExpression {
     /// - parameter columns: The columns of the common table expression. If nil,
     ///   the columns are the columns of the request.
     /// - parameter request: A request.
-    public init<Request: SQLSubqueryable>(
+    public init(
         recursive: Bool = false,
         named tableName: String,
         columns: [String]? = nil,
-        request: Request)
+        request: some SQLSubqueryable)
     {
         self.init(
             recursive: recursive,
@@ -102,7 +104,7 @@ extension CommonTableExpression {
     /// - parameter tableName: The table name of the common table expression.
     /// - parameter columns: The columns of the common table expression. If nil,
     ///   the columns are the columns of the request.
-    /// - parameter sql: An SQL query.
+    /// - parameter sql: An SQL string.
     /// - parameter arguments: Statement arguments.
     public init(
         recursive: Bool = false,
@@ -121,8 +123,8 @@ extension CommonTableExpression {
     
     /// Creates a common table expression from an SQL *literal*.
     ///
-    /// Literals allow you to safely embed raw values in your SQL, without any
-    /// risk of syntax errors or SQL injection:
+    /// ``SQL`` literals allow you to safely embed raw values in your SQL,
+    /// without any risk of syntax errors or SQL injection:
     ///
     ///     // WITH p AS (SELECT * FROM player WHERE name = 'O''Brien') ...
     ///     let name = "O'Brien"
@@ -135,7 +137,7 @@ extension CommonTableExpression {
     /// - parameter tableName: The table name of the common table expression.
     /// - parameter columns: The columns of the common table expression. If nil,
     ///   the columns are the columns of the request.
-    /// - parameter sqlLiteral: An `SQL` literal.
+    /// - parameter sqlLiteral: An ``SQL`` literal.
     public init(
         recursive: Bool = false,
         named tableName: String,
@@ -151,7 +153,7 @@ extension CommonTableExpression {
     }
 }
 
-extension CommonTableExpression where RowDecoder == Row {
+extension CommonTableExpression<Row> {
     /// Creates a common table expression from a request.
     ///
     /// For example:
@@ -172,11 +174,11 @@ extension CommonTableExpression where RowDecoder == Row {
     /// - parameter columns: The columns of the common table expression. If nil,
     ///   the columns are the columns of the request.
     /// - parameter request: A request.
-    public init<Request: SQLSubqueryable>(
+    public init(
         recursive: Bool = false,
         named tableName: String,
         columns: [String]? = nil,
-        request: Request)
+        request: some SQLSubqueryable)
     {
         self.init(
             recursive: recursive,
@@ -202,7 +204,7 @@ extension CommonTableExpression where RowDecoder == Row {
     /// - parameter tableName: The table name of the common table expression.
     /// - parameter columns: The columns of the common table expression. If nil,
     ///   the columns are the columns of the request.
-    /// - parameter sql: An SQL query.
+    /// - parameter sql: An SQL string.
     /// - parameter arguments: Statement arguments.
     public init(
         recursive: Bool = false,
@@ -221,8 +223,8 @@ extension CommonTableExpression where RowDecoder == Row {
     
     /// Creates a common table expression from an SQL *literal*.
     ///
-    /// Literals allow you to safely embed raw values in your SQL, without any
-    /// risk of syntax errors or SQL injection:
+    /// ``SQL`` literals allow you to safely embed raw values in your SQL,
+    /// without any risk of syntax errors or SQL injection:
     ///
     ///     // WITH p AS (SELECT * FROM player WHERE name = 'O''Brien') ...
     ///     let name = "O'Brien"
@@ -235,7 +237,7 @@ extension CommonTableExpression where RowDecoder == Row {
     /// - parameter tableName: The table name of the common table expression.
     /// - parameter columns: The columns of the common table expression. If nil,
     ///   the columns are the columns of the request.
-    /// - parameter sqlLiteral: An `SQL` literal.
+    /// - parameter sqlLiteral: An ``SQL`` literal.
     public init(
         recursive: Bool = false,
         named tableName: String,
@@ -296,13 +298,16 @@ extension CommonTableExpression {
     ///
     ///     // name IN playerName
     ///     playerNameCTE.contains(Column("name"))
-    public func contains(_ element: SQLExpressible) -> SQLExpression {
+    public func contains(_ element: some SQLExpressible) -> SQLExpression {
         SQLCollection.table(tableName).contains(element.sqlExpression)
     }
 }
 
 /// A low-level common table expression
 struct SQLCTE {
+    /// The table name of the common table expression.
+    var tableName: String
+    
     /// The columns of the common table expression.
     ///
     /// When nil, the CTE selects the columns of the request:
@@ -334,7 +339,35 @@ struct SQLCTE {
             return columns.count
         }
         
-        return try sqlSubquery.columnCount(db)
+        do {
+            return try sqlSubquery.columnCount(db)
+        } catch let error as DatabaseError where error.resultCode == .SQLITE_ERROR {
+            // Maybe the CTE refers to other CTEs: https://github.com/groue/GRDB.swift/issues/1275
+            // We can't modify the CTE request by creating or extending the
+            // WITH clause with other CTEs, because we'd need to parse SQL.
+            // So let's rewrite the error message, and guide the user towards
+            // a more precise CTE definition:
+            let message = [
+                [
+                    """
+                    Can't compute the number of columns in the \
+                    \(String(reflecting: tableName)) common table expression
+                    """,
+                    error.message,
+                ].compactMap { $0 }.joined(separator: ": "),
+                """
+                Check the syntax of the SQL definition, or provide the \
+                explicit list of selected columns with the `columns` parameter \
+                in the CommonTableExpression initializer.
+                """,
+            ].joined(separator: ". ")
+            throw DatabaseError(
+                resultCode: error.extendedResultCode,
+                message: message,
+                sql: error.sql,
+                arguments: error.arguments,
+                publicStatementArguments: error.publicStatementArguments)
+        }
     }
 }
 
@@ -352,7 +385,7 @@ extension CommonTableExpression {
     /// - returns: An association to the common table expression.
     public func association<Destination>(
         to cte: CommonTableExpression<Destination>,
-        on condition: @escaping (_ left: TableAlias, _ right: TableAlias) -> SQLExpressible)
+        on condition: @escaping (_ left: TableAlias, _ right: TableAlias) -> any SQLExpressible)
     -> JoinAssociation<RowDecoder, Destination>
     {
         JoinAssociation(
@@ -388,7 +421,7 @@ extension CommonTableExpression {
     /// - returns: An association to the common table expression.
     public func association<Destination>(
         to destination: Destination.Type,
-        on condition: @escaping (_ left: TableAlias, _ right: TableAlias) -> SQLExpressible)
+        on condition: @escaping (_ left: TableAlias, _ right: TableAlias) -> any SQLExpressible)
     -> JoinAssociation<RowDecoder, Destination>
     where Destination: TableRecord
     {
@@ -425,7 +458,7 @@ extension CommonTableExpression {
     /// - returns: An association to the common table expression.
     public func association<Destination>(
         to destination: Table<Destination>,
-        on condition: @escaping (_ left: TableAlias, _ right: TableAlias) -> SQLExpressible)
+        on condition: @escaping (_ left: TableAlias, _ right: TableAlias) -> any SQLExpressible)
     -> JoinAssociation<RowDecoder, Destination>
     {
         JoinAssociation(

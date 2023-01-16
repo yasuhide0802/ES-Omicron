@@ -1,7 +1,7 @@
 //: To run this playground:
 //:
 //: - Open GRDB.xcworkspace
-//: - Select the GRDBOSX scheme: menu Product > Scheme > GRDBOSX
+//: - Select the GRDB scheme: menu Product > Scheme > GRDB
 //: - Build: menu Product > Build
 //: - Select the playground in the Playgrounds Group
 //: - Run the playground
@@ -11,7 +11,7 @@ import GRDB
 
 // Create the database
 
-let dbQueue = DatabaseQueue()   // Memory database
+let dbQueue = try DatabaseQueue()   // Memory database
 var migrator = DatabaseMigrator()
 migrator.registerMigration("createPerson") { db in
     try db.create(table: "person") { t in

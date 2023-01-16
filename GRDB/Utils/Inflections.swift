@@ -3,7 +3,7 @@ import Foundation
 extension String {
     /// "player" -> "Player"
     var uppercasingFirstCharacter: String {
-        guard let first = first else {
+        guard let first else {
             return self
         }
         return String(first).uppercased() + dropFirst()
@@ -28,9 +28,9 @@ extension String {
     }
 }
 
-/// [**Experimental**](http://github.com/groue/GRDB.swift#what-are-experimental-features)
-///
 /// A type that controls GRDB string inflections.
+///
+/// - note: [**🔥 EXPERIMENTAL**](https://github.com/groue/GRDB.swift/blob/master/README.md#what-are-experimental-features)
 public struct Inflections {
     private var pluralizeRules: [(NSRegularExpression, String)] = []
     private var singularizeRules: [(NSRegularExpression, String)] = []
