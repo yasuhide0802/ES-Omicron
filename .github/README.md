@@ -7,9 +7,9 @@ The default branch for this repository is `SQLCipher` so that we can more easily
 
 ## Versioning
 
-* This Package: *1.2.1.1*
-* GRDB: *5.26.0*
-* SQLCipher: *4.5.1*
+* This Package: *2.0.0*
+* GRDB: *6.6.0*
+* SQLCipher: *4.5.3*
 
 ## Contributions
 We do not accept contributions to this repository at this time.  However, feel free to open an issue in order to start a discussion.
@@ -66,7 +66,7 @@ Once approved:
 * push the tag,
 * update the reference to GRDB in BSK to point to a tag.
 
-# Compiling SQLCipher manually
+### Compiling SQLCipher manually
 
 In case `prepare_release.sh` script fails, you need to compile SQLCipher amalgamation package
 manually. See [general instructions](https://github.com/sqlcipher/sqlcipher#compiling-for-unix-like-systems):
