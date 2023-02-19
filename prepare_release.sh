@@ -8,9 +8,13 @@ if [[ "$1" == "-v" ]]; then
 fi
 
 cwd="$(dirname "${BASH_SOURCE[0]}")"
+workdir="$(mktemp -d)"
+mkdir -p "${workdir}/Logs"
+# trap 'rm -rf "$workdir"' EXIT
+grdb_dir="${workdir}/GRDB-source"
+sqlcipher_dir="${workdir}/sqlcipher-source"
 
 clone_grdb() {
-	grdb_dir="${cwd}/upstream"
 	if ! [[ -d "$grdb_dir" ]]; then
 		rm -rf "$grdb_dir"
 
@@ -26,65 +30,22 @@ clone_grdb() {
 	echo "Checked out GRDB.swift latest tag: $grdb_tag"
 }
 
-build_sqlcipher() {
-	local tempdir
-	tempdir="$(mktemp -d)"
-	trap 'rm -rf "$tempdir"' EXIT
-
-	sqlcipher_path="${grdb_dir}/GRDB"
-	local header_path="${sqlcipher_path}/sqlite3.h"
-	local impl_path="${sqlcipher_path}/sqlite3.c"
-
+clone_sqlcipher() {
 	printf '%s' "Cloning SQLCipher ... "
-	eval git clone https://github.com/sqlcipher/sqlcipher.git "$tempdir" "$mute"
+	eval git clone https://github.com/sqlcipher/sqlcipher.git "$sqlcipher_dir" "$mute"
 	echo "✅"
 
-	export GIT_DIR="${tempdir}/.git"
+	export GIT_DIR="${sqlcipher_dir}/.git"
 	sqlcipher_tag="$(git describe --tags --abbrev=0)"
 	eval git checkout "$(git describe --tags --abbrev=0)" "$mute"
 	unset GIT_DIR
 	echo "Checked out SQLCipher latest tag: $sqlcipher_tag"
-
-	eval pushd "$tempdir" "$mute" || { echo "pushd failed"; exit 1; }
-
-	printf '%s' "Configuring SQLCipher ... "
-	eval ./configure --with-crypto-lib=none "$mute"
-	echo "✅"
-
-	printf '%s' "Building SQLCipher ... "
-	ncpu=$(sysctl -n hw.ncpu 2>/dev/null || echo "1")
-	eval make -j"${ncpu}" sqlite3.c "$mute"
-	echo "✅"
-
-	eval popd "$mute" || { echo "popd failed"; exit 1; }
-
-	printf '%s' "Moving SQLCipher artifacts into place ... "
-	rm -f "$header_path" "$impl_path"
-	mkdir -p "${sqlcipher_path}/include"
-	cp -f "${tempdir}/sqlite3.h" "$header_path"
-
-	# Including param.h unconditionally removes compile time
-	# warnings about ambiguous MIN and MAX macros.
-	echo "#include <sys/param.h>" > "$impl_path"
-	cat "${tempdir}/sqlite3.c" >> "${impl_path}"
-	echo "✅"
-}
-
-patch_grdb() {
-	printf '%s' "Patching GRDB ... "
-	: > "${grdb_dir}/GRDB/Export.swift"
-	echo '#import "sqlite3.h"' > "${grdb_dir}/Support/GRDB-Bridging.h"
-	echo '#include "../../assets/SQLCipher.xcconfig"' >> "${grdb_dir}/Support/GRDB.xcconfig"
-
-	patch -p1 -f -d "$grdb_dir" < "${cwd}/assets/xcodeproj.patch"
-	echo "✅"
 }
 
 update_readme() {
 	current_version="$(git describe --tags --abbrev=0 --exclude=v* origin/SQLCipher)"
 	current_upstream_version="$(grep '\* GRDB' README.md | cut -d '*' -f 3)"
 	current_sqlcipher_version="$(grep '\* SQLCipher' README.md | cut -d '*' -f 3)"
-	grdb_tag="$(git describe --tags --abbrev=0 --match=v* upstream-master)"
 
 	export new_version upstream_version="${grdb_tag#v}" sqlcipher_version="${sqlcipher_tag#v}"
 
@@ -106,51 +67,229 @@ update_readme() {
 	done
 
 	envsubst < "${cwd}/assets/README.md.in" > README.md
-	git add README.md
 
 	echo "Updated README.md ✅"
+	echo ""
+}
+
+build_sqlcipher() {
+	local sqlcipher_destdir="${grdb_dir}/GRDB"
+	local header_path="${sqlcipher_destdir}/sqlite3.h"
+	local impl_path="${sqlcipher_destdir}/sqlite3.c"
+
+	eval pushd "$sqlcipher_dir" "$mute" || { echo "pushd failed"; exit 1; }
+
+	printf '%s' "Configuring SQLCipher ... "
+	eval ./configure --with-crypto-lib=none "$mute"
+	echo "✅"
+
+	printf '%s' "Building SQLCipher ... "
+	ncpu=$(sysctl -n hw.ncpu 2>/dev/null || echo "1")
+	eval make -j"${ncpu}" sqlite3.c "$mute"
+	echo "✅"
+
+	eval popd "$mute" || { echo "popd failed"; exit 1; }
+
+	printf '%s' "Moving SQLCipher artifacts into place ... "
+	rm -f "$header_path" "$impl_path"
+	mkdir -p "${sqlcipher_destdir}/include"
+	cp -f "${sqlcipher_dir}/sqlite3.h" "$header_path"
+
+	# Including param.h unconditionally removes compile time
+	# warnings about ambiguous MIN and MAX macros.
+	echo "#include <sys/param.h>" > "$impl_path"
+	cat "${sqlcipher_dir}/sqlite3.c" >> "${impl_path}"
+	echo "✅"
+}
+
+patch_grdb() {
+	local patch_file="${cwd}/assets/xcodeproj.patch"
+	local grdb_xcodeproj_file="${grdb_dir}/GRDB.xcodeproj"
+
+	printf '%s' "Patching GRDB ... "
+	: > "${grdb_dir}/GRDB/Export.swift"
+	echo '#import "sqlite3.h"' > "${grdb_dir}/Support/GRDB-Bridging.h"
+	echo "#include \"${grdb_dir}/SQLCipher.xcconfig\"" >> "${grdb_dir}/Support/GRDBDeploymentTarget.xcconfig"
+
+	if patch -s -p1 -f -d "$grdb_dir" < "$patch_file"; then
+		echo "✅"
+	else
+		echo "❌"
+		cat <<-EOF
+		Failed to automatically patch GRDB.swift Xcode project file. Please follow instructions for manual patching:
+			1. After you confirm reading instructions, two windows will open:
+				* Xcode, with GRDB.swift project
+				* Finder, with GRDB source code directory (look for sqlite3.h and sqlite3.c files)
+			2. Drag sqlite3.h and sqlite3.c to the Xcode project under GRDB directory. Add both files to GRDB target.
+			3. Select sqlite3.h in Xcode, open right hand side panel and adjust Target Membership by marking the header file as Public.
+			4. Close Xcode project, go back to terminal and press Ctrl+C to continue.
+		EOF
+
+		read -n 1 -srp "Press any key to continue"
+		open "${grdb_dir}/GRDB"
+		open "$grdb_xcodeproj_file"
+
+		echo ""
+		echo "Make edits to the project file, close it and press Ctrl+C when you're ready"
+		read -rp "Press enter to continue"
+
+		pushd "$grdb_dir" >/dev/null 2>&1
+		local diff
+		diff=$(git diff "GRDB.xcodeproj/project.pbxproj")
+		popd >/dev/null 2>&1
+		echo "$diff" > "${patch_file}"
+		echo "Updated Xcode project patch file ✅"
+	fi
+}
+
+setup_log_formatter() {
+	if command -v xcbeautify &> /dev/null; then
+		log_formatter='xcbeautify'
+	elif command -v xcpretty &> /dev/null; then
+		log_formatter='xcpretty'
+	else
+		echo
+		echo "xcbeautify and xcpretty not found - not prettifying Xcode logs. You can install xcbeautify using 'brew install xcbeautify'."
+		echo
+		log_formatter='tee'
+	fi
 }
 
 build_and_test_release() {
-	echo "Testing the build ..."
-	rm -rf "${cwd}/.build"
+	local derived_data_dir="${grdb_dir}/DerivedData"
+	local log_file="${workdir}/Logs/GRDB-${grdb_tag}-unittests.log"
+
+	setup_log_formatter
+	rm -rf "${derived_data_dir}"
+	cp -f "${cwd}/assets/SQLCipher.xcconfig" "${grdb_dir}"
+
+	printf '%s' "Building GRDB ... "
+	if xcodebuild build-for-testing \
+		-project "${grdb_dir}/GRDB.xcodeproj" \
+		-scheme "GRDB" \
+		-derivedDataPath "$derived_data_dir" >"$log_file" 2>&1; then
+
+		echo "✅"
+	else
+		echo "❌"
+		echo "Failed to build GRDB with SQLCipher support. See log file at ${log_file} for more info."
+		exit 1
+	fi
+
+	echo "Testing GRDB ... ⚙️"
 	# The skipped test references a test database added with a podfile.
 	# We're safe to disable it since we don't care about SQLCipher 3 compatibility anyway.
-	swift test --skip "EncryptionTests.testSQLCipher3Compatibility"
+	if xcodebuild test-without-building \
+		-project "${grdb_dir}/GRDB.xcodeproj" \
+		-scheme "GRDB" \
+		-derivedDataPath "$derived_data_dir" \
+		-skip-testing:GRDBTests/EncryptionTests/testSQLCipher3Compatibility \
+		| tee -a "$log_file" | $log_formatter 2>&1; then
 
-	echo ""
-	swift build -c release
-
-	cat <<- EOF
-
-	SQLCipher ${sqlcipher_tag} is ready to use with GRDB.swift ${grdb_tag} 🎉
-
-	EOF
+		echo "Unit tests succeeded ✅"
+	else
+		cat <<-EOF
+		Unit tests failed ❌
+		See log file at ${log_file} for more info.
+		Rerun with -f to skip testing.
+		EOF
+		exit 1
+	fi
 }
 
-setup_new_release_branch() {
-	echo "Setting up new release branch ..."
+build_archive() {
+	local platform=$1
+	local archives_dir=$2
+	local log_file="${workdir}/Logs/GRDB-archive-${platform/ /-}.log"
 
-	local release_branch="release/${new_version}"
+	printf '%s' "  * Archiving for ${platform} ... "
 
-	git checkout -b "$release_branch"
-	git add "${cwd}/.github/README.md" "$sqlcipher_path"
-	git commit -m "DuckDuckGo GRDB.swift ${new_version} (GRDB ${upstream_version}, SQLCipher ${sqlcipher_version})"
+	if xcodebuild archive \
+		-project "${grdb_dir}/GRDB.xcodeproj" \
+		-scheme GRDB \
+		-destination "generic/platform=${platform}" \
+		-archivePath "${archives_dir}/GRDB-${platform}" \
+		-derivedDataPath "${derived_data}" \
+		"${build_opts[@]}" >"$log_file" 2>&1; then
+
+		echo "✅"
+	else
+		echo "❌"
+		echo "Failed to create archive. See log file at ${log_file} for more info."
+		exit 1
+	fi
+}
+
+build_xcframework() {
+	local derived_data="${workdir}/DerivedData"
+	local xcframework="${workdir}/GRDB.xcframework"
+	xcframework_zip="${workdir}/GRDB.xcframework.zip"
+	local archives_dir="${workdir}/archives"
+
+	build_opts=("BUILD_LIBRARY_FOR_DISTRIBUTION=YES" "SKIP_INSTALL=NO" "ONLY_ACTIVE_ARCH=NO")
+
+	echo ""
+	echo "Building XCFramework ⚙️"
+
+	rm -rf "${derived_data}" "${archives_dir}" "${xcframework}"
+
+	build_archive "iOS" "$archives_dir"
+	build_archive "iOS Simulator" "$archives_dir"
+	build_archive "macOS" "$archives_dir"
+
+	printf '%s' "Creating XCFramework ... "
+	xcodebuild -create-xcframework \
+ 		-archive "${archives_dir}/GRDB-iOS.xcarchive" -framework GRDB.framework \
+		-archive "${archives_dir}/GRDB-iOS Simulator.xcarchive" -framework GRDB.framework \
+		-archive "${archives_dir}/GRDB-macOS.xcarchive" -framework GRDB.framework \
+		-output "${xcframework}" >/dev/null 2>&1
+	echo "✅"
+	
+	printf '%s' "Compressing XCFramework ... "
+	rm -rf "$xcframework_zip"
+	ditto -c -k --keepParent "$xcframework" "$xcframework_zip"
+	echo "✅"
+}
+
+update_swift_package() {
+	printf '%s' "Updating Package.swift ... "
+	export checksum
+	checksum=$(swift package compute-checksum "$xcframework_zip")
+	envsubst < "${cwd}/assets/Package.swift.in" > "${cwd}/Package.swift"
+	echo "✅"
+}
+
+make_release() {
+	echo "Making ${new_version} release ... 🚢"
+
+	local commit_message="DuckDuckGo GRDB.swift ${new_version} (GRDB ${upstream_version}, SQLCipher ${sqlcipher_version})"
+
+	git add "${cwd}/README.md" "${cwd}/Package.swift" "${cwd}/assets/xcodeproj.patch"
+	git commit -m "$commit_message"
+	git tag -m "$commit_message" "$new_version"
+	git push origin main
+	git push origin "$new_version"
+
+	gh release create "$new_version" --generate-notes "${xcframework_zip}" --repo duckduckgo/GRDB.swift
 
 	cat <<- EOF
 
-	Release is prepared on branch ${release_branch}.
-	Push the branch when ready and follow .github/README.md for release instructions.
+	🎉 Release is ready at https://github.com/duckduckgo/GRDB.swift/releases/tag/${new_version}
 	EOF
 }
 
 main() {
+	printf '%s\n' "Using directory at ${workdir}"
+
 	clone_grdb
+	clone_sqlcipher
+	update_readme
 	build_sqlcipher
 	patch_grdb
-	update_readme
-	# build_and_test_release
-	#setup_new_release_branch
+	build_and_test_release
+	build_xcframework
+	update_swift_package
+	make_release
 }
 
 main
