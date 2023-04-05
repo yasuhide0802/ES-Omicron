@@ -14,6 +14,41 @@ mkdir -p "${workdir}/Logs"
 grdb_dir="${workdir}/GRDB-source"
 sqlcipher_dir="${workdir}/sqlcipher-source"
 
+print_usage_and_exit() {
+	cat <<- EOF
+	Usage:
+	  $ $(basename "$0") [-v] [-h] [<grdb_tag>]
+
+	Options:
+	 -h      Show this message
+	 -v      Verbose output
+	EOF
+
+	exit 1
+}
+
+read_command_line_arguments() {
+	while getopts 'hv' OPTION; do
+		case "${OPTION}" in
+			h)
+				print_usage_and_exit
+				;;
+			v)
+				mute=
+				;;
+			*)
+				;;
+		esac
+	done
+
+	shift $((OPTIND-1))
+
+	grdb_tag="$1"
+	if [[ -n "$grdb_tag" ]]; then
+		force_release=1
+	fi
+}
+
 clone_grdb() {
 	if ! [[ -d "$grdb_dir" ]]; then
 		rm -rf "$grdb_dir"
@@ -24,7 +59,7 @@ clone_grdb() {
 	fi
 
 	export GIT_DIR="${grdb_dir}/.git"
-	grdb_tag="$(git describe --tags --abbrev=0)"
+	grdb_tag="${1:-$(git describe --tags --abbrev=0)}"
 	eval git checkout "${grdb_tag}" "$mute"
 	unset GIT_DIR
 	echo "Checked out GRDB.swift latest tag: $grdb_tag"
@@ -50,7 +85,8 @@ update_readme() {
 	export new_version upstream_version="${grdb_tag#v}" sqlcipher_version="${sqlcipher_tag#v}"
 
 	if [[ "${current_upstream_version}" == "${upstream_version}" ]] && \
-		[[ "${current_sqlcipher_version}" == "${sqlcipher_version}" ]]; then
+		[[ "${current_sqlcipher_version}" == "${sqlcipher_version}" ]] && \
+		[[ -z "$force_release" ]]; then
 		echo "GRDB.swift (${upstream_version}) and SQLCipher (${sqlcipher_version}) versions did not change. Skipping release."
 		exit 1
 	fi
@@ -281,7 +317,9 @@ make_release() {
 main() {
 	printf '%s\n' "Using directory at ${workdir}"
 
-	clone_grdb
+	read_command_line_arguments "$@"
+
+	clone_grdb "$grdb_tag"
 	clone_sqlcipher
 	update_readme
 	build_sqlcipher
@@ -292,4 +330,4 @@ main() {
 	make_release
 }
 
-main
+main "$@"
