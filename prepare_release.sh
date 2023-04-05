@@ -58,10 +58,10 @@ clone_grdb() {
 		echo "✅"
 	fi
 
-	export GIT_DIR="${grdb_dir}/.git"
+	cd "${grdb_dir}"
 	grdb_tag="${1:-$(git describe --tags --abbrev=0)}"
 	eval git checkout "${grdb_tag}" "$mute"
-	unset GIT_DIR
+	cd -
 	echo "Checked out GRDB.swift latest tag: $grdb_tag"
 }
 
@@ -78,7 +78,7 @@ clone_sqlcipher() {
 }
 
 update_readme() {
-	current_version="$(git describe --tags --abbrev=0 --exclude=v* origin/SQLCipher)"
+	current_version="$(git describe --tags --abbrev=0 --exclude=v* main)"
 	current_upstream_version="$(grep '\* GRDB' README.md | cut -d '*' -f 3)"
 	current_sqlcipher_version="$(grep '\* SQLCipher' README.md | cut -d '*' -f 3)"
 
