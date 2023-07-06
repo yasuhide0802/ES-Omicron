@@ -144,7 +144,6 @@ patch_grdb() {
 
 	printf '%s' "Patching GRDB ... "
 	: > "${grdb_dir}/GRDB/Export.swift"
-	echo '#import "sqlite3.h"' > "${grdb_dir}/Support/GRDB-Bridging.h"
 	echo "#include \"${grdb_dir}/SQLCipher.xcconfig\"" >> "${grdb_dir}/Support/GRDBDeploymentTarget.xcconfig"
 
 	if patch -s -p1 -f -d "$grdb_dir" < "$patch_file"; then
