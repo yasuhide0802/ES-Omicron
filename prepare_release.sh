@@ -144,6 +144,7 @@ patch_grdb() {
 
 	printf '%s' "Patching GRDB ... "
 	: > "${grdb_dir}/GRDB/Export.swift"
+	echo '#import "sqlite3.h"' > "${grdb_dir}/Support/GRDB-Bridging.h"
 	echo "#include \"${grdb_dir}/SQLCipher.xcconfig\"" >> "${grdb_dir}/Support/GRDBDeploymentTarget.xcconfig"
 
 	if patch -s -p1 -f -d "$grdb_dir" < "$patch_file"; then
@@ -234,7 +235,7 @@ build_and_test_release() {
 
 build_archive() {
 	local platform=$1
-	local archives_dir=$2
+	local archives_path=$2
 	local log_file="${workdir}/Logs/GRDB-archive-${platform/ /-}.log"
 
 	printf '%s' "  * Archiving for ${platform} ... "
@@ -243,7 +244,7 @@ build_archive() {
 		-project "${grdb_dir}/GRDB.xcodeproj" \
 		-scheme GRDB \
 		-destination "generic/platform=${platform}" \
-		-archivePath "${archives_dir}/GRDB-${platform}" \
+		-archivePath "${archives_path}/GRDB-${platform}" \
 		-derivedDataPath "${derived_data}" \
 		"${build_opts[@]}" >"$log_file" 2>&1; then
 
@@ -259,25 +260,28 @@ build_xcframework() {
 	local derived_data="${workdir}/DerivedData"
 	local xcframework="${workdir}/GRDB.xcframework"
 	xcframework_zip="${workdir}/GRDB.xcframework.zip"
-	local archives_dir="${workdir}/archives"
+	local archives_dir="archives"
+	local archives_path="${workdir}/${archives_dir}"
 
 	build_opts=("BUILD_LIBRARY_FOR_DISTRIBUTION=YES" "SKIP_INSTALL=NO" "ONLY_ACTIVE_ARCH=NO")
 
 	echo ""
 	echo "Building XCFramework ⚙️"
 
-	rm -rf "${derived_data}" "${archives_dir}" "${xcframework}"
+	rm -rf "${derived_data}" "${archives_path}" "${xcframework}"
 
-	build_archive "iOS" "$archives_dir"
-	build_archive "iOS Simulator" "$archives_dir"
-	build_archive "macOS" "$archives_dir"
+	build_archive "iOS" "$archives_path"
+	build_archive "iOS Simulator" "$archives_path"
+	build_archive "macOS" "$archives_path"
 
 	printf '%s' "Creating XCFramework ... "
+	pushd "$workdir" >/dev/null 2>&1
 	xcodebuild -create-xcframework \
  		-archive "${archives_dir}/GRDB-iOS.xcarchive" -framework GRDB.framework \
 		-archive "${archives_dir}/GRDB-iOS Simulator.xcarchive" -framework GRDB.framework \
 		-archive "${archives_dir}/GRDB-macOS.xcarchive" -framework GRDB.framework \
 		-output "${xcframework}" >/dev/null 2>&1
+	popd >/dev/null 2>&1
 	echo "✅"
 	
 	printf '%s' "Compressing XCFramework ... "
