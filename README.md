@@ -7,9 +7,9 @@ The default branch for this repository is `main` (as opposed to upstream's `mast
 
 ## Version
 
-* This Package: *2.2.0*
-* GRDB: *6.15.1*
-* SQLCipher: *4.5.4*
+* This Package: *2.3.0*
+* GRDB: *6.23.0*
+* SQLCipher: *4.5.5*
 
 ## Contributions
 We do not accept contributions to this repository at this time.  However, feel free to open an issue in order to start a discussion.
