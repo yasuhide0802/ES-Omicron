@@ -71,7 +71,7 @@ clone_sqlcipher() {
 	echo "✅"
 
 	export GIT_DIR="${sqlcipher_dir}/.git"
-	sqlcipher_tag="$(git describe --tags --abbrev=0)"
+	sqlcipher_tag="${SQLCIPHER_VERSION:-$(git describe --tags --abbrev=0)}"
 	eval git checkout "$(git describe --tags --abbrev=0)" "$mute"
 	unset GIT_DIR
 	echo "Checked out SQLCipher latest tag: $sqlcipher_tag"
