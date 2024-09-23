@@ -214,6 +214,7 @@ extension SelectionRequest {
 ///
 /// ### The WHERE and JOIN ON Clauses
 ///
+/// - ``all()``
 /// - ``filter(_:)``
 /// - ``filter(literal:)``
 /// - ``filter(sql:arguments:)``
@@ -291,6 +292,13 @@ extension FilteredRequest {
     public func none() -> Self {
         filterWhenConnected { _ in false }
     }
+  
+  /// Returns `self`: a request that fetches all rows from this request.
+  ///
+  /// This method, which does nothing, exists in order to match ``none()``.
+  public func all() -> Self {
+      self
+  }
 }
 
 // MARK: - TableRequest
@@ -434,7 +442,11 @@ extension TableRequest where Self: FilteredRequest, Self: TypedRequest {
         // make it impractical to define `filter(id:)`, `fetchOne(_:key:)`,
         // `deleteAll(_:ids:)` etc.
         if let recordType = RowDecoder.self as? any EncodableRecord.Type {
-            if Sequence.Element.self == Date.self || Sequence.Element.self == Optional<Date>.self {
+            if Sequence.Element.self == Data.self || Sequence.Element.self == Optional<Data>.self {
+                let strategy = recordType.databaseDataEncodingStrategy
+                let keys = keys.compactMap { ($0 as! Data?).flatMap(strategy.encode)?.databaseValue }
+                return filter(rawKeys: keys)
+            } else if Sequence.Element.self == Date.self || Sequence.Element.self == Optional<Date>.self {
                 let strategy = recordType.databaseDateEncodingStrategy
                 let keys = keys.compactMap { ($0 as! Date?).flatMap(strategy.encode)?.databaseValue }
                 return filter(rawKeys: keys)
@@ -893,6 +905,7 @@ extension AggregatingRequest {
 /// - ``orderWhenConnected(_:)``
 /// - ``reversed()``
 /// - ``unordered()``
+/// - ``withStableOrder()``
 public protocol OrderedRequest {
     /// Sorts the fetched rows according to the given SQL ordering terms.
     ///
@@ -953,6 +966,14 @@ public protocol OrderedRequest {
     ///     .unordered()
     /// ```
     func unordered() -> Self
+    
+    /// Returns a request with a stable order.
+    ///
+    /// The returned request lifts ordering ambiguities and always return
+    /// its results in the same order.
+    ///
+    /// The purpose of this method is to make requests testable.
+    func withStableOrder() -> Self
 }
 
 extension OrderedRequest {
@@ -1328,6 +1349,7 @@ extension JoinableRequest where Self: SelectionRequest {
 ///
 /// ### The WHERE Clause
 ///
+/// - ``FilteredRequest/all()``
 /// - ``FilteredRequest/filter(_:)``
 /// - ``TableRequest/filter(id:)``
 /// - ``TableRequest/filter(ids:)``
@@ -1365,6 +1387,7 @@ extension JoinableRequest where Self: SelectionRequest {
 /// - ``TableRequest/orderByPrimaryKey()``
 /// - ``OrderedRequest/reversed()``
 /// - ``OrderedRequest/unordered()``
+/// - ``OrderedRequest/withStableOrder()``
 ///
 /// ### Associations
 ///

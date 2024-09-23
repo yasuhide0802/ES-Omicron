@@ -5,7 +5,7 @@ import GRDB
 class PlayerRequestTests: XCTestCase {
     func test_PlayerRequest_byName_fetches_well_ordered_players() throws {
         // Given a players database that contains two players
-        let dbQueue = try DatabaseQueue()
+        let dbQueue = try DatabaseQueue(configuration: AppDatabase.makeConfiguration())
         _ = try AppDatabase(dbQueue)
         var player1 = Player(id: nil, name: "Arthur", score: 100)
         var player2 = Player(id: nil, name: "Barbara", score: 1000)
@@ -16,7 +16,7 @@ class PlayerRequestTests: XCTestCase {
         
         // When we fetch players ordered by name
         let playerRequest = PlayerRequest(ordering: .byName)
-        let players = try dbQueue.read(playerRequest.fetchValue)
+        let players = try dbQueue.read(playerRequest.fetch)
         
         // Then the players are the two players ordered by name
         XCTAssertEqual(players, [player1, player2])
@@ -24,7 +24,7 @@ class PlayerRequestTests: XCTestCase {
     
     func test_PlayerRequest_byScore_fetches_well_ordered_players() throws {
         // Given a players database that contains two players
-        let dbQueue = try DatabaseQueue()
+        let dbQueue = try DatabaseQueue(configuration: AppDatabase.makeConfiguration())
         _ = try AppDatabase(dbQueue)
         var player1 = Player(id: nil, name: "Arthur", score: 100)
         var player2 = Player(id: nil, name: "Barbara", score: 1000)
@@ -35,7 +35,7 @@ class PlayerRequestTests: XCTestCase {
         
         // When we fetch players ordered by score
         let playerRequest = PlayerRequest(ordering: .byScore)
-        let players = try dbQueue.read(playerRequest.fetchValue)
+        let players = try dbQueue.read(playerRequest.fetch)
         
         // Then the players are the two players ordered by score descending
         XCTAssertEqual(players, [player2, player1])

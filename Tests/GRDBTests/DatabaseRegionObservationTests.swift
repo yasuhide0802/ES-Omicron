@@ -2,6 +2,18 @@ import XCTest
 import GRDB
 
 class DatabaseRegionObservationTests: GRDBTestCase {
+    // Test passes if it compiles.
+    // See <https://github.com/groue/GRDB.swift/issues/1541>
+    func testAnyDatabaseWriter(writer: any DatabaseWriter) throws {
+        let observation = DatabaseRegionObservation(tracking: .fullDatabase)
+        
+        _ = observation.start(in: writer, onError: { _ in }, onChange: { _ in })
+        
+        if #available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *) {
+            _ = observation.publisher(in: writer)
+        }
+    }
+    
     func testDatabaseRegionObservation_FullDatabase() throws {
         let dbQueue = try makeDatabaseQueue()
         try dbQueue.write {
@@ -222,6 +234,42 @@ class DatabaseRegionObservationTests: GRDBTestCase {
             waitForExpectations(timeout: 1, handler: nil)
             
             XCTAssertEqual(count, 1)
+        }
+    }
+
+    func test_DatabaseRegionObservation_is_triggered_by_explicit_change_notification() throws {
+        let dbQueue1 = try makeDatabaseQueue(filename: "test.sqlite")
+        try dbQueue1.write { db in
+            try db.execute(sql: "CREATE TABLE test(a)")
+        }
+        
+        let undetectedExpectation = expectation(description: "undetected")
+        undetectedExpectation.isInverted = true
+
+        let detectedExpectation = expectation(description: "detected")
+        
+        let observation = DatabaseRegionObservation(tracking: Table("test"))
+        let cancellable = observation.start(
+            in: dbQueue1,
+            onError: { error in XCTFail("Unexpected error: \(error)") },
+            onChange: { _ in
+                undetectedExpectation.fulfill()
+                detectedExpectation.fulfill()
+            })
+        
+        try withExtendedLifetime(cancellable) {
+            // Change performed from external connection is not detected...
+            let dbQueue2 = try makeDatabaseQueue(filename: "test.sqlite")
+            try dbQueue2.write { db in
+                try db.execute(sql: "INSERT INTO test (a) VALUES (1)")
+            }
+            wait(for: [undetectedExpectation], timeout: 2)
+            
+            // ... until we perform an explicit change notification
+            try dbQueue1.write { db in
+                try db.notifyChanges(in: Table("test"))
+            }
+            wait(for: [detectedExpectation], timeout: 2)
         }
     }
     

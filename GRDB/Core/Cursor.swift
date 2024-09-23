@@ -195,6 +195,56 @@ extension Set {
         // database cursors.
         try cursor.forEach { insert($0) }
     }
+    
+    /// Returns a new set with the elements of both this set and the
+    /// given cursor.
+    ///
+    /// If the set already contains one or more elements that are also in
+    /// the cursor, the existing members are kept. If the cursor contains
+    /// multiple instances of equivalent elements, only the first instance
+    /// is kept.
+    ///
+    /// - parameter cursor: A cursor of elements.
+    /// - returns: A new set with the unique elements of this set
+    ///   and `cursor`.
+    public func union(_ cursor: some Cursor<Element>) throws -> Set<Element> {
+        var result = self
+        try result.formUnion(cursor)
+        return result
+    }
+
+    /// Inserts the elements of the given cursor into the set.
+    ///
+    /// If the set already contains one or more elements that are also in
+    /// the cursor, the existing members are kept. If the cursor contains
+    /// multiple instances of equivalent elements, only the first instance
+    /// is kept.
+    ///
+    /// - parameter cursor: A cursor of elements.
+    public mutating func formUnion(_ cursor: some Cursor<Element>) throws {
+        while let element = try cursor.next() {
+            insert(element)
+        }
+    }
+    
+    /// Returns a new set with the elements that are common to both this set
+    /// and the given cursor.
+    ///
+    /// - parameter cursor: A cursor of elements.
+    /// - returns: A new set.
+    public func intersection(_ cursor: some Cursor<Element>) throws -> Set<Element> {
+        var result = self
+        try result.formIntersection(cursor)
+        return result
+    }
+
+    /// Removes the elements of the set that aren’t also in the
+    /// given cursor.
+    ///
+    /// - parameter cursor: A cursor of elements.
+    public mutating func formIntersection(_ cursor: some Cursor<Element>) throws {
+        try formIntersection(Set(cursor))
+    }
 }
 
 extension Sequence {
@@ -733,6 +783,11 @@ public final class AnyCursor<Element>: Cursor {
     }
 }
 
+// Explicit non-conformance to Sendable: a type-erased cursor can't be more
+// sendable than non-sendable cursors (such as `DatabaseCursor`).
+@available(*, unavailable)
+extension AnyCursor: Sendable { }
+
 /// A `Cursor` that consumes and drops n elements from an underlying `Base`
 /// cursor before possibly returning the first available element.
 public final class DropFirstCursor<Base: Cursor> {
@@ -746,6 +801,11 @@ public final class DropFirstCursor<Base: Cursor> {
         self.limit = limit
     }
 }
+
+// Explicit non-conformance to Sendable: `DropFirstCursor` is a mutable
+// class and there is no known reason for making it thread-safe.
+@available(*, unavailable)
+extension DropFirstCursor: Sendable { }
 
 extension DropFirstCursor: Cursor {
     public func next() throws -> Base.Element? {
@@ -772,6 +832,11 @@ public final class DropWhileCursor<Base: Cursor> {
         self.predicate = predicate
     }
 }
+
+// Explicit non-conformance to Sendable: `DropWhileCursor` is a mutable
+// class and there is no known reason for making it thread-safe.
+@available(*, unavailable)
+extension DropWhileCursor: Sendable { }
 
 extension DropWhileCursor: Cursor {
     public func next() throws -> Base.Element? {
@@ -817,6 +882,11 @@ public final class EnumeratedCursor<Base: Cursor> {
         self.index = 0
     }
 }
+
+// Explicit non-conformance to Sendable: `EnumeratedCursor` is a mutable
+// class and there is no known reason for making it thread-safe.
+@available(*, unavailable)
+extension EnumeratedCursor: Sendable { }
 
 extension EnumeratedCursor: Cursor {
     public func next() throws -> (Int, Base.Element)? {
@@ -875,6 +945,11 @@ public final class FlattenCursor<Base: Cursor> where Base.Element: Cursor {
     }
 }
 
+// Explicit non-conformance to Sendable: `EnumeratedCursor` is a mutable
+// class and there is no known reason for making it thread-safe.
+@available(*, unavailable)
+extension FlattenCursor: Sendable { }
+
 extension FlattenCursor: Cursor {
     public func next() throws -> Base.Element.Element? {
         while true {
@@ -900,6 +975,11 @@ public final class MapCursor<Base: Cursor, Element> {
         self.transform = transform
     }
 }
+
+// Explicit non-conformance to Sendable: There is no known reason for making
+// it thread-safe (`transform` a Sendable closure).
+@available(*, unavailable)
+extension MapCursor: Sendable { }
 
 extension MapCursor: Cursor {
     public func next() throws -> Element? {
@@ -927,6 +1007,11 @@ public final class PrefixCursor<Base: Cursor> {
     }
 }
 
+// Explicit non-conformance to Sendable: `PrefixCursor` is a mutable
+// class and there is no known reason for making it thread-safe.
+@available(*, unavailable)
+extension PrefixCursor: Sendable { }
+
 extension PrefixCursor: Cursor {
     public func next() throws -> Base.Element? {
         if taken >= maxLength { return nil }
@@ -953,6 +1038,11 @@ public final class PrefixWhileCursor<Base: Cursor> {
         self.predicate = predicate
     }
 }
+
+// Explicit non-conformance to Sendable: `PrefixCursor` is a mutable
+// class and there is no known reason for making it thread-safe.
+@available(*, unavailable)
+extension PrefixWhileCursor: Sendable { }
 
 extension PrefixWhileCursor: Cursor {
     public func next() throws -> Base.Element? {

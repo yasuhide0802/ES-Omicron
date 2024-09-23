@@ -171,7 +171,7 @@ struct SQLRelation {
     var source: SQLSource
     var selectionPromise: DatabasePromise<[SQLSelection]>
     var filterPromise: DatabasePromise<SQLExpression>?
-    var ordering: SQLRelation.Ordering = SQLRelation.Ordering()
+    var ordering = SQLRelation.Ordering()
     var ctes: OrderedDictionary<String, SQLCTE> = [:] // See also `allCTEs`
     var children: OrderedDictionary<String, Child> = [:]
     
@@ -277,6 +277,28 @@ extension SQLRelation: Refinable {
             $0.children = children.mapValues { child in
                 child.with {
                     $0.relation = $0.relation.unordered()
+                }
+            }
+        }
+    }
+    
+    func withStableOrder() -> Self {
+        with { relation in
+            relation.ordering = relation.ordering.appending(Ordering(orderings: { [relation] db in
+                if try db.tableExists(source.tableName) {
+                    // Order by primary key. Don't order by rowid because those are
+                    // not stable: rowids can change after a vacuum.
+                    return try db.primaryKey(source.tableName).columns.map { SQLExpression.column($0).sqlOrdering }
+                } else {
+                    // Support for views: create a stable order from all columns:
+                    // ORDER BY 1, 2, 3, ...
+                    let columnCount = try SQLQueryGenerator(relation: relation).columnCount(db)
+                    return (1...columnCount).map { SQL(sql: $0.description).sqlOrdering }
+                }
+            }))
+            relation.children = children.mapValues { child in
+                child.with {
+                    $0.relation = $0.relation.withStableOrder()
                 }
             }
         }
@@ -612,7 +634,12 @@ extension SQLRelation {
             guard !isDistinct else {
                 return try fetchTrivialCount(db)
             }
-    
+            
+            // <https://github.com/groue/GRDB.swift/issues/1357>
+            guard selection.allSatisfy(\.isTriviallyCountable) else {
+                return try fetchTrivialCount(db)
+            }
+            
             // SELECT expr1, expr2, ... FROM tableName ...
             // ->
             // SELECT COUNT(*) FROM tableName ...

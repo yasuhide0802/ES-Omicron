@@ -61,6 +61,7 @@
 /// ### Batch Delete
 ///
 /// - ``deleteAll(_:)``
+/// - ``deleteAndFetchIds(_:)``
 /// - ``deleteAndFetchCursor(_:)``
 /// - ``deleteAndFetchAll(_:)``
 /// - ``deleteAndFetchSet(_:)``
@@ -100,8 +101,13 @@ extension QueryInterfaceRequest: FetchRequest {
         let associations = relation.prefetchedAssociations
         if associations.isEmpty == false {
             // Eager loading of prefetched associations
-            preparedRequest.supplementaryFetch = { [relation] db, rows in
-                try prefetch(db, associations: associations, from: relation, into: rows)
+            preparedRequest.supplementaryFetch = { [relation] db, rows, willExecuteSupplementaryRequest in
+                try prefetch(
+                    db,
+                    associations: associations,
+                    from: relation,
+                    into: rows,
+                    willExecuteSupplementaryRequest: willExecuteSupplementaryRequest)
             }
         }
         return preparedRequest
@@ -339,6 +345,12 @@ extension QueryInterfaceRequest: OrderedRequest {
             $0.relation = $0.relation.unordered()
         }
     }
+    
+    public func withStableOrder() -> QueryInterfaceRequest<RowDecoder> {
+        with {
+            $0.relation = $0.relation.withStableOrder()
+        }
+    }
 }
 
 extension QueryInterfaceRequest: AggregatingRequest {
@@ -436,7 +448,7 @@ extension QueryInterfaceRequest: DerivableRequest {
         }
     }
     
-    public func with<RowDecoder>(_ cte: CommonTableExpression<RowDecoder>) -> Self {
+    public func with<T>(_ cte: CommonTableExpression<T>) -> Self {
         with {
             $0.relation.ctes[cte.tableName] = cte.cte
         }
@@ -517,7 +529,7 @@ extension QueryInterfaceRequest {
     ///
     /// - important: Make sure you check the documentation of the `RETURNING`
     ///   clause, which describes important limitations and caveats:
-    ///   <https://www.sqlite.org/lang_returning.html>.
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
     ///
     /// - parameter db: A database connection.
     /// - parameter selection: The returned columns (must not be empty).
@@ -533,7 +545,7 @@ extension QueryInterfaceRequest {
         return try SQLQueryGenerator(relation: relation).makeDeleteStatement(db, selection: selection)
     }
     
-    /// Returns a cursor over the record deleted by a
+    /// Returns a cursor over the records deleted by a
     /// `DELETE RETURNING` statement.
     ///
     /// For example:
@@ -550,10 +562,10 @@ extension QueryInterfaceRequest {
     ///
     /// - important: Make sure you check the documentation of the `RETURNING`
     ///   clause, which describes important limitations and caveats:
-    ///   <https://www.sqlite.org/lang_returning.html>.
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
     ///
     /// - parameter db: A database connection.
-    /// - returns: A ``RecordCursor`` over deleted records.
+    /// - returns: A ``RecordCursor`` over the deleted records.
     /// - throws: A ``DatabaseError`` whenever an SQLite error occurs.
     public func deleteAndFetchCursor(_ db: Database)
     throws -> RecordCursor<RowDecoder>
@@ -577,7 +589,7 @@ extension QueryInterfaceRequest {
     ///
     /// - important: Make sure you check the documentation of the `RETURNING`
     ///   clause, which describes important limitations and caveats:
-    ///   <https://www.sqlite.org/lang_returning.html>.
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
     ///
     /// - parameter db: A database connection.
     /// - returns: An array of deleted records.
@@ -603,7 +615,7 @@ extension QueryInterfaceRequest {
     ///
     /// - important: Make sure you check the documentation of the `RETURNING`
     ///   clause, which describes important limitations and caveats:
-    ///   <https://www.sqlite.org/lang_returning.html>.
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
     ///
     /// - parameter db: A database connection.
     /// - returns: A set of deleted records.
@@ -613,6 +625,41 @@ extension QueryInterfaceRequest {
     where RowDecoder: FetchableRecord & TableRecord & Hashable
     {
         try Set(deleteAndFetchCursor(db))
+    }
+
+    /// Executes a `DELETE RETURNING` statement and returns the set of
+    /// deleted ids.
+    ///
+    /// For example:
+    ///
+    /// ```swift
+    /// // Fetch the ids of deleted players
+    /// // DELETE FROM player RETURNING id
+    /// let request = Player.all()
+    /// let deletedPlayerIds = try request.deleteAndFetchIds(db)
+    /// ```
+    ///
+    /// - important: Make sure you check the documentation of the `RETURNING`
+    ///   clause, which describes important limitations and caveats:
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
+    ///
+    /// - parameter db: A database connection.
+    /// - returns: A set of deleted ids.
+    /// - throws: A ``DatabaseError`` whenever an SQLite error occurs.
+    @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *) // Identifiable
+    public func deleteAndFetchIds(_ db: Database)
+    throws -> Set<RowDecoder.ID>
+    where RowDecoder: TableRecord & Identifiable,
+    RowDecoder.ID: Hashable & DatabaseValueConvertible & StatementColumnConvertible
+    {
+        let primaryKey = try db.primaryKey(RowDecoder.databaseTableName)
+        GRDBPrecondition(
+            primaryKey.columns.count == 1,
+            "Fetching id requires a single-column primary key in the table \(databaseTableName)")
+        
+        let statement = try deleteAndFetchStatement(db, selection: [Column(primaryKey.columns[0])])
+        
+        return try RowDecoder.ID.fetchSet(statement)
     }
 #else
     /// Returns a `DELETE RETURNING` prepared statement.
@@ -629,7 +676,7 @@ extension QueryInterfaceRequest {
     ///
     /// - important: Make sure you check the documentation of the `RETURNING`
     ///   clause, which describes important limitations and caveats:
-    ///   <https://www.sqlite.org/lang_returning.html>.
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
     ///
     /// - parameter db: A database connection.
     /// - parameter selection: The returned columns (must not be empty).
@@ -646,7 +693,7 @@ extension QueryInterfaceRequest {
         return try SQLQueryGenerator(relation: relation).makeDeleteStatement(db, selection: selection)
     }
     
-    /// Returns a cursor over the record deleted by a
+    /// Returns a cursor over the records deleted by a
     /// `DELETE RETURNING` statement.
     ///
     /// For example:
@@ -663,10 +710,10 @@ extension QueryInterfaceRequest {
     ///
     /// - important: Make sure you check the documentation of the `RETURNING`
     ///   clause, which describes important limitations and caveats:
-    ///   <https://www.sqlite.org/lang_returning.html>.
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
     ///
     /// - parameter db: A database connection.
-    /// - returns: A ``RecordCursor`` over deleted records.
+    /// - returns: A ``RecordCursor`` over the deleted records.
     /// - throws: A ``DatabaseError`` whenever an SQLite error occurs.
     @available(iOS 15, macOS 12, tvOS 15, watchOS 8, *) // SQLite 3.35.0+
     public func deleteAndFetchCursor(_ db: Database)
@@ -691,7 +738,7 @@ extension QueryInterfaceRequest {
     ///
     /// - important: Make sure you check the documentation of the `RETURNING`
     ///   clause, which describes important limitations and caveats:
-    ///   <https://www.sqlite.org/lang_returning.html>.
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
     ///
     /// - parameter db: A database connection.
     /// - returns: An array of deleted records.
@@ -718,7 +765,7 @@ extension QueryInterfaceRequest {
     ///
     /// - important: Make sure you check the documentation of the `RETURNING`
     ///   clause, which describes important limitations and caveats:
-    ///   <https://www.sqlite.org/lang_returning.html>.
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
     ///
     /// - parameter db: A database connection.
     /// - returns: A set of deleted records.
@@ -729,6 +776,41 @@ extension QueryInterfaceRequest {
     where RowDecoder: FetchableRecord & TableRecord & Hashable
     {
         try Set(deleteAndFetchCursor(db))
+    }
+
+    /// Executes a `DELETE RETURNING` statement and returns the set of
+    /// deleted ids.
+    ///
+    /// For example:
+    ///
+    /// ```swift
+    /// // Fetch the ids of deleted players
+    /// // DELETE FROM player RETURNING id
+    /// let request = Player.all()
+    /// let deletedPlayerIds = try request.deleteAndFetchIds(db)
+    /// ```
+    ///
+    /// - important: Make sure you check the documentation of the `RETURNING`
+    ///   clause, which describes important limitations and caveats:
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
+    ///
+    /// - parameter db: A database connection.
+    /// - returns: A set of deleted ids.
+    /// - throws: A ``DatabaseError`` whenever an SQLite error occurs.
+    @available(iOS 15, macOS 12, tvOS 15, watchOS 8, *) // SQLite 3.35.0+
+    public func deleteAndFetchIds(_ db: Database)
+    throws -> Set<RowDecoder.ID>
+    where RowDecoder: TableRecord & Identifiable,
+    RowDecoder.ID: Hashable & DatabaseValueConvertible & StatementColumnConvertible
+    {
+        let primaryKey = try db.primaryKey(RowDecoder.databaseTableName)
+        GRDBPrecondition(
+            primaryKey.columns.count == 1,
+            "Fetching id requires a single-column primary key in the table \(databaseTableName)")
+        
+        let statement = try deleteAndFetchStatement(db, selection: [Column(primaryKey.columns[0])])
+        
+        return try RowDecoder.ID.fetchSet(statement)
     }
 #endif
 }
@@ -833,7 +915,7 @@ extension QueryInterfaceRequest {
     ///
     /// - important: Make sure you check the documentation of the `RETURNING`
     ///   clause, which describes important limitations and caveats:
-    ///   <https://www.sqlite.org/lang_returning.html>.
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
     ///
     /// - parameter db: A database connection.
     /// - parameter conflictResolution: A policy for conflict resolution.
@@ -865,7 +947,7 @@ extension QueryInterfaceRequest {
         return updateStatement
     }
     
-    /// Returns a cursor over the record updated by an
+    /// Returns a cursor over the records updated by an
     /// `UPDATE RETURNING` statement.
     ///
     /// For example:
@@ -882,7 +964,7 @@ extension QueryInterfaceRequest {
     ///
     /// - important: Make sure you check the documentation of the `RETURNING`
     ///   clause, which describes important limitations and caveats:
-    ///   <https://www.sqlite.org/lang_returning.html>.
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
     ///
     /// - parameter db: A database connection.
     /// - parameter conflictResolution: A policy for conflict resolution.
@@ -919,7 +1001,7 @@ extension QueryInterfaceRequest {
     ///
     /// - important: Make sure you check the documentation of the `RETURNING`
     ///   clause, which describes important limitations and caveats:
-    ///   <https://www.sqlite.org/lang_returning.html>.
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
     ///
     /// - parameter db: A database connection.
     /// - parameter conflictResolution: A policy for conflict resolution.
@@ -951,7 +1033,7 @@ extension QueryInterfaceRequest {
     ///
     /// - important: Make sure you check the documentation of the `RETURNING`
     ///   clause, which describes important limitations and caveats:
-    ///   <https://www.sqlite.org/lang_returning.html>.
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
     ///
     /// - parameter db: A database connection.
     /// - parameter conflictResolution: A policy for conflict resolution.
@@ -985,7 +1067,7 @@ extension QueryInterfaceRequest {
     ///
     /// - important: Make sure you check the documentation of the `RETURNING`
     ///   clause, which describes important limitations and caveats:
-    ///   <https://www.sqlite.org/lang_returning.html>.
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
     ///
     /// - parameter db: A database connection.
     /// - parameter conflictResolution: A policy for conflict resolution.
@@ -1018,7 +1100,7 @@ extension QueryInterfaceRequest {
         return updateStatement
     }
     
-    /// Returns a cursor over the record updated by an
+    /// Returns a cursor over the records updated by an
     /// `UPDATE RETURNING` statement.
     ///
     /// For example:
@@ -1035,7 +1117,7 @@ extension QueryInterfaceRequest {
     ///
     /// - important: Make sure you check the documentation of the `RETURNING`
     ///   clause, which describes important limitations and caveats:
-    ///   <https://www.sqlite.org/lang_returning.html>.
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
     ///
     /// - parameter db: A database connection.
     /// - parameter conflictResolution: A policy for conflict resolution.
@@ -1073,7 +1155,7 @@ extension QueryInterfaceRequest {
     ///
     /// - important: Make sure you check the documentation of the `RETURNING`
     ///   clause, which describes important limitations and caveats:
-    ///   <https://www.sqlite.org/lang_returning.html>.
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
     ///
     /// - parameter db: A database connection.
     /// - parameter conflictResolution: A policy for conflict resolution.
@@ -1106,7 +1188,7 @@ extension QueryInterfaceRequest {
     ///
     /// - important: Make sure you check the documentation of the `RETURNING`
     ///   clause, which describes important limitations and caveats:
-    ///   <https://www.sqlite.org/lang_returning.html>.
+    ///   <https://www.sqlite.org/lang_returning.html#limitations_and_caveats>.
     ///
     /// - parameter db: A database connection.
     /// - parameter conflictResolution: A policy for conflict resolution.
@@ -1279,6 +1361,90 @@ extension ColumnExpression {
     public static func /= (column: Self, value: some SQLExpressible) -> ColumnAssignment {
         column.set(to: column / value)
     }
+    
+    /// Creates an assignment that applies a bitwise and.
+    ///
+    /// For example:
+    ///
+    /// ```swift
+    /// Column("mask") &= 2
+    /// Column("mask") &= Column("other")
+    /// ```
+    ///
+    /// Usage:
+    ///
+    /// ```swift
+    /// try dbQueue.write { db in
+    ///     // UPDATE player SET score = score & 2
+    ///     try Player.updateAll(db, Column("mask") &= 2)
+    /// }
+    /// ```
+    public static func &= (column: Self, value: some SQLExpressible) -> ColumnAssignment {
+        column.set(to: column & value)
+    }
+    
+    /// Creates an assignment that applies a bitwise or.
+    ///
+    /// For example:
+    ///
+    /// ```swift
+    /// Column("mask") |= 2
+    /// Column("mask") |= Column("other")
+    /// ```
+    ///
+    /// Usage:
+    ///
+    /// ```swift
+    /// try dbQueue.write { db in
+    ///     // UPDATE player SET score = score | 2
+    ///     try Player.updateAll(db, Column("mask") |= 2)
+    /// }
+    /// ```
+    public static func |= (column: Self, value: some SQLExpressible) -> ColumnAssignment {
+        column.set(to: column | value)
+    }
+    
+    /// Creates an assignment that applies a bitwise left shift.
+    ///
+    /// For example:
+    ///
+    /// ```swift
+    /// Column("mask") <<= 2
+    /// Column("mask") <<= Column("other")
+    /// ```
+    ///
+    /// Usage:
+    ///
+    /// ```swift
+    /// try dbQueue.write { db in
+    ///     // UPDATE player SET score = score << 2
+    ///     try Player.updateAll(db, Column("mask") <<= 2)
+    /// }
+    /// ```
+    public static func <<= (column: Self, value: some SQLExpressible) -> ColumnAssignment {
+        column.set(to: column << value)
+    }
+    
+    /// Creates an assignment that applies a bitwise right shift.
+    ///
+    /// For example:
+    ///
+    /// ```swift
+    /// Column("mask") >>= 2
+    /// Column("mask") >>= Column("other")
+    /// ```
+    ///
+    /// Usage:
+    ///
+    /// ```swift
+    /// try dbQueue.write { db in
+    ///     // UPDATE player SET score = score >> 2
+    ///     try Player.updateAll(db, Column("mask") >>= 2)
+    /// }
+    /// ```
+    public static func >>= (column: Self, value: some SQLExpressible) -> ColumnAssignment {
+        column.set(to: column >> value)
+    }
 }
 
 // MARK: - Eager loading of hasMany associations
@@ -1290,11 +1456,14 @@ extension ColumnExpression {
 /// - parameter associations: Prefetched associations.
 /// - parameter originRows: The rows that need to be extended with prefetched rows.
 /// - parameter originQuery: The query that was used to fetch `originRows`.
+/// - parameter willExecuteSupplementaryRequest: A closure executed before a
+///   supplementary fetch is performed.
 private func prefetch(
     _ db: Database,
     associations: [_SQLAssociation],
     from originRelation: SQLRelation,
-    into originRows: [Row]) throws
+    into originRows: [Row],
+    willExecuteSupplementaryRequest: WillExecuteSupplementaryRequest?) throws
 {
     guard let firstOriginRow = originRows.first else {
         // No rows -> no prefetch
@@ -1389,6 +1558,10 @@ private func prefetch(
                     annotatedWith: pivotColumns)
             }
             
+            if let willExecuteSupplementaryRequest {
+                // Support for `Database.dumpRequest`
+                try willExecuteSupplementaryRequest(.init(prefetchRequest), association.keyPath)
+            }
             let prefetchedRows = try prefetchRequest.fetchAll(db)
             let prefetchedGroups = prefetchedRows.grouped(byDatabaseValuesOnColumns: pivotColumns.map { "grdb_\($0)" })
             let groupingIndexes = firstOriginRow.indexes(forColumns: leftColumns)

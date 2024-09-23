@@ -277,7 +277,8 @@ class TableRecordDeleteTests: GRDBTestCase {
             
             _ = try Person.filter(keys: [1, 2]).deleteAndFetchCursor(db).next()
             XCTAssertEqual(self.lastSQLQuery, "DELETE FROM \"persons\" WHERE \"id\" IN (1, 2) RETURNING *")
-
+            
+#if GRDBCUSTOMSQLITE || GRDBCIPHER
             if #available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *) {
                 _ = try Person.filter(id: 1).deleteAndFetchCursor(db).next()
                 XCTAssertEqual(self.lastSQLQuery, "DELETE FROM \"persons\" WHERE \"id\" = 1 RETURNING *")
@@ -285,7 +286,14 @@ class TableRecordDeleteTests: GRDBTestCase {
                 _ = try Person.filter(ids: [1, 2]).deleteAndFetchCursor(db).next()
                 XCTAssertEqual(self.lastSQLQuery, "DELETE FROM \"persons\" WHERE \"id\" IN (1, 2) RETURNING *")
             }
-
+#else
+            _ = try Person.filter(id: 1).deleteAndFetchCursor(db).next()
+            XCTAssertEqual(self.lastSQLQuery, "DELETE FROM \"persons\" WHERE \"id\" = 1 RETURNING *")
+            
+            _ = try Person.filter(ids: [1, 2]).deleteAndFetchCursor(db).next()
+            XCTAssertEqual(self.lastSQLQuery, "DELETE FROM \"persons\" WHERE \"id\" IN (1, 2) RETURNING *")
+#endif
+            
             _ = try Person.filter(sql: "id = 1").deleteAndFetchCursor(db).next()
             XCTAssertEqual(self.lastSQLQuery, "DELETE FROM \"persons\" WHERE id = 1 RETURNING *")
             
@@ -356,6 +364,30 @@ class TableRecordDeleteTests: GRDBTestCase {
         }
     }
     
+    @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *) // Identifiable
+    func testRequestDeleteAndFetchIds() throws {
+#if GRDBCUSTOMSQLITE || GRDBCIPHER
+        guard sqlite3_libversion_number() >= 3035000 else {
+            throw XCTSkip("RETURNING clause is not available")
+        }
+#else
+        guard #available(iOS 15, macOS 12, tvOS 15, watchOS 8, *) else {
+            throw XCTSkip("RETURNING clause is not available")
+        }
+#endif
+        
+        let dbQueue = try makeDatabaseQueue()
+        try dbQueue.inDatabase { db in
+            try Person(id: 1, name: "Arthur", email: "arthur@example.com").insert(db)
+            try Person(id: 2, name: "Barbara", email: "barbara@example.com").insert(db)
+            try Person(id: 3, name: "Craig", email: "craig@example.com").insert(db)
+
+            let request = Person.filter(Column("id") != 2)
+            let deletedIds = try request.deleteAndFetchIds(db)
+            XCTAssertEqual(deletedIds, [1, 3])
+        }
+    }
+    
     func testJoinedRequestDeleteAll() throws {
         try makeDatabaseQueue().inDatabase { db in
             struct Player: MutablePersistableRecord {
@@ -374,7 +406,7 @@ class TableRecordDeleteTests: GRDBTestCase {
             
             try db.create(table: "player") { t in
                 t.autoIncrementedPrimaryKey("id")
-                t.column("teamId", .integer).references("team")
+                t.belongsTo("team")
             }
             
             do {
@@ -449,7 +481,7 @@ class TableRecordDeleteTests: GRDBTestCase {
             
             try db.create(table: "player") { t in
                 t.autoIncrementedPrimaryKey("id")
-                t.column("teamId", .integer).references("team")
+                t.belongsTo("team")
             }
             
             do {

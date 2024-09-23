@@ -27,7 +27,7 @@ private class Person : Record, Hashable {
     
     // Record
     
-    override static var databaseSelection: [SQLSelectable] {
+    override static var databaseSelection: [any SQLSelectable] {
         [AllColumns(), Column.rowID]
     }
     
@@ -557,6 +557,17 @@ class RecordPrimaryKeyHiddenRowIDTests : GRDBTestCase {
         let dbQueue = try makeDatabaseQueue()
         try dbQueue.inDatabase { db in
             let request = Person.orderByPrimaryKey()
+            try assertEqualSQL(db, request, "SELECT *, \"rowid\" FROM \"persons\" ORDER BY \"rowid\"")
+        }
+    }
+    
+    
+    // MARK: - Stable order
+    
+    func testStableOrder() throws {
+        let dbQueue = try makeDatabaseQueue()
+        try dbQueue.inDatabase { db in
+            let request = Person.all().withStableOrder()
             try assertEqualSQL(db, request, "SELECT *, \"rowid\" FROM \"persons\" ORDER BY \"rowid\"")
         }
     }

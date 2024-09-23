@@ -289,14 +289,13 @@ public protocol DatabaseWriter: DatabaseReader {
     /// ```
     ///
     /// - note: Usage of this method is discouraged, because waiting on the
-    ///   returned ``DatabaseFuture`` blocks a thread. You may prefer the
-    ///   asynchronous version of this method: ``spawnConcurrentRead(_:)``.
+    ///   returned ``DatabaseFuture`` blocks a thread. You may prefer
+    ///   ``spawnConcurrentRead(_:)`` instead.
     /// - parameter value: A closure which accesses the database.
     func concurrentRead<T>(_ value: @escaping (Database) throws -> T) -> DatabaseFuture<T>
     
     // Exposed for RxGRDB and GRBCombine. Naming is not stabilized.
-    /// Schedules read-only database operations for execution, and
-    /// returns immediately.
+    /// Schedules read-only database operations for execution.
     ///
     /// - note: [**🔥 EXPERIMENTAL**](https://github.com/groue/GRDB.swift/blob/master/README.md#what-are-experimental-features)
     ///
@@ -311,7 +310,7 @@ public protocol DatabaseWriter: DatabaseReader {
     /// by the database writer.
     ///
     /// In the example below, the number of players is fetched concurrently with
-    /// the player insertion. Yet the future is guaranteed to return zero:
+    /// the player insertion. Yet it is guaranteed to return zero:
     ///
     /// ```swift
     /// try writer.writeWithoutTransaction { db in
@@ -333,6 +332,10 @@ public protocol DatabaseWriter: DatabaseReader {
     ///     try Player(...).insert(db)
     /// }
     /// ```
+    ///
+    /// - important: The database operations are executed immediately,
+    ///   or asynchronously, depending on the actual class
+    ///   of `DatabaseWriter`.
     ///
     /// - parameter value: A closure which accesses the database. Its argument
     ///   is a `Result` that provides the database connection, or the failure
@@ -442,10 +445,21 @@ extension DatabaseWriter {
     
     // MARK: - Transaction Observers
     
-    /// Adds a transaction observer, so that it gets notified of
-    /// database changes and transactions.
+    /// Adds a transaction observer to the writer connection, so that it
+    /// gets notified of database changes and transactions.
     ///
-    /// This method has no effect on read-only database connections.
+    /// This method waits until all currently executing database accesses
+    /// performed by the writer dispatch queue finish executing.
+    /// At that point, database observation begins.
+    ///
+    /// It has no effect on read-only database connections.
+    ///
+    /// For example:
+    ///
+    /// ```swift
+    /// let myObserver = MyObserver()
+    /// try dbQueue.add(transactionObserver: myObserver)
+    /// ```
     ///
     /// - parameter transactionObserver: A transaction observer.
     /// - parameter extent: The duration of the observation. The default is
@@ -458,14 +472,25 @@ extension DatabaseWriter {
         writeWithoutTransaction { $0.add(transactionObserver: transactionObserver, extent: extent) }
     }
     
-    /// Removes a transaction observer.
+    /// Removes a transaction observer from the writer connection.
+    ///
+    /// This method waits until all currently executing database accesses
+    /// performed by the writer dispatch queue finish executing.
+    /// At that point, database observation stops.
+    ///
+    /// For example:
+    ///
+    /// ```swift
+    /// let myObserver = MyObserver()
+    /// try dbQueue.remove(transactionObserver: myObserver)
+    /// ```
     public func remove(transactionObserver: some TransactionObserver) {
         writeWithoutTransaction { $0.remove(transactionObserver: transactionObserver) }
     }
     
     // MARK: - Erasing the content of the database
     
-    /// Erases the content of the database.
+    /// Erase the database: delete all content, drop all tables, etc.
     @_disfavoredOverload // SR-15150 Async overloading in protocol implementation fails
     public func erase() throws {
         try barrierWriteWithoutTransaction { try $0.erase() }
@@ -684,7 +709,7 @@ extension DatabaseWriter {
         }
     }
     
-    /// Erases the content of the database.
+    /// Erase the database: delete all content, drop all tables, etc.
     ///
     /// - note: [**🔥 EXPERIMENTAL**](https://github.com/groue/GRDB.swift/blob/master/README.md#what-are-experimental-features)
     @available(iOS 13, macOS 10.15, tvOS 13, watchOS 6, *)
@@ -959,6 +984,10 @@ public final class AnyDatabaseWriter {
 extension AnyDatabaseWriter: DatabaseReader {
     public var configuration: Configuration {
         base.configuration
+    }
+    
+    public var path: String {
+        base.path
     }
     
     public func close() throws {

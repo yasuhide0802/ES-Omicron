@@ -216,10 +216,12 @@ extension ResultCode: Sendable { }
 /// do {
 ///     try player.insert(db)
 /// } catch let error as DatabaseError {
-///     switch error.resultCode {
-///     case ResultCode.SQLITE_CONSTRAINT_FOREIGNKEY:
+///     print(error) // prints debugging information
+///     
+///     switch error {
+///     case DatabaseError.SQLITE_CONSTRAINT_FOREIGNKEY:
 ///         // foreign key constraint error
-///     case ResultCode.SQLITE_CONSTRAINT:
+///     case DatabaseError.SQLITE_CONSTRAINT:
 ///         // any other constraint error
 ///     default:
 ///         // any other database error
@@ -394,6 +396,10 @@ public struct DatabaseError: Error {
     static func noSuchTable(_ tableName: String) -> Self {
         DatabaseError(message: "no such table: \(tableName)")
     }
+    
+    static func noSuchSchema(_ schemaName: String) -> Self {
+        DatabaseError(message: "no such schema: \(schemaName)")
+    }
 }
 
 extension DatabaseError {
@@ -547,7 +553,7 @@ extension DatabaseError: CustomStringConvertible {
             description += ": \(message)"
         }
         if let sql {
-            description += " - while executing `\(sql)`"
+            description += " - while executing `\(sql.trimmedSQLStatement)`"
         }
         if publicStatementArguments, let arguments, !arguments.isEmpty {
             description += " with arguments \(arguments)"
@@ -575,7 +581,7 @@ extension DatabaseError: CustomStringConvertible {
             description += ": \(message)"
         }
         if let sql {
-            description += " - while executing `\(sql)`"
+            description += " - while executing `\(sql.trimmedSQLStatement)`"
         }
         if let arguments, !arguments.isEmpty {
             description += " with arguments \(arguments)"
