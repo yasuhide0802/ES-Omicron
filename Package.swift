@@ -73,6 +73,7 @@ let package = Package(
         .watchOS(.v4),
     ],
     products: [
+        .library(name: "SQLCipher", targets: ["SQLCipher"]),
         .library(name: "GRDB", targets: ["GRDB"]),
         .library(name: "GRDB-dynamic", type: .dynamic, targets: ["GRDB"]),
     ],
