@@ -50,7 +50,8 @@ cSettings.append(contentsOf: [
 
 let sqlCipherCSettings = cSettings + [
     .define("NDEBUG"),
-    .define("HAVE_GETHOSTUUID", to: "0")
+    .define("HAVE_GETHOSTUUID", to: "0"),
+    .headerSearchPath("include")
 ]
 
 // The SPI_BUILDER environment variable enables documentation building
